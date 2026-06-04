@@ -1,5 +1,7 @@
 # YT Rec Fix (Watched Blocker)
 
+**Repository:** https://github.com/YOUR_GITHUB_USERNAME/yt-rec-fix (private)
+
 Firefox addon that makes it trivial to tell YouTube "I watched this and don't want it recommended again", plus **reliable local client-side hiding** of watched/re-blocked videos so they stop appearing in recommendations immediately.
 
 Addresses the pain: manually clicking through 5 steps (⋯ → Not interested → Tell us why → checkboxes → Submit) is tedious and often ineffective. This addon reduces it to 1 click and guarantees the video won't show up again for you via local suppression.
@@ -19,18 +21,30 @@ Addresses the pain: manually clicking through 5 steps (⋯ → Not interested �
 - All client-side, no data sent anywhere except the normal YouTube feedback actions you would have triggered yourself.
 
 ## Install (Development / Temporary)
-1. Clone or download this folder.
-2. In Firefox, go to `about:debugging#/runtime/this-firefox`.
-3. Click "Load Temporary Add-on...".
-4. Select the `manifest.json` file inside this folder.
-5. (First time) You may need to grant "Access your data for www.youtube.com" / host permission via the puzzle piece menu or Add-ons Manager for the extension.
-6. Open https://www.youtube.com and test.
+Clone the repo (or download a zip of the folder):
+
+```bash
+git clone https://github.com/YOUR_GITHUB_USERNAME/yt-rec-fix.git
+cd yt-rec-fix
+```
+
+1. In Firefox, go to `about:debugging#/runtime/this-firefox`.
+2. Click "Load Temporary Add-on...".
+3. Select the `manifest.json` file inside this folder.
+4. (First time) You may need to grant "Access your data for www.youtube.com" / host permission via the puzzle piece menu or Add-ons Manager for the extension.
+5. Open https://www.youtube.com and test.
 
 For repeated development:
 - `npm install -g web-ext` (optional but recommended)
-- Then `web-ext run --firefox-desktop` from the project root (auto-reloads on file changes).
+- Then `web-ext run --firefox-desktop` from the project root (auto-reloads on file changes). Requires Node.
 
 Reload the addon in about:debugging after edits.
+
+## Contributing
+Issues and pull requests welcome. This project is set up so Grok (in this environment) can drive changes, reviews (`/review`), PR babysitting, and stacked work using the authenticated `gh` CLI + git after the initial setup.
+
+See the session plan for the GitHub access method (gh CLI is primary; GitHub MCP server is also configured for tool calls).
+
 
 ## Usage
 - Browse YouTube normally.

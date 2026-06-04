@@ -1,0 +1,16 @@
+# web-ext / build
+dist/
+web-ext-artifacts/
+*.zip
+
+# node
+node_modules/
+package-lock.json
+
+# OS / editor
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
+*.log

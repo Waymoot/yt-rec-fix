@@ -1,0 +1,70 @@
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  width: 260px;
+  background: #fff;
+  color: #222;
+}
+
+.popup {
+  padding: 12px;
+}
+
+h1 {
+  font-size: 16px;
+  margin: 0 0 8px;
+  color: #c00;
+}
+
+.stats {
+  background: #f5f5f5;
+  padding: 6px 8px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.toggles label {
+  display: block;
+  font-size: 12px;
+  margin: 6px 0;
+  cursor: pointer;
+}
+
+.toggles input {
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.actions {
+  margin: 10px 0;
+  display: flex;
+  gap: 6px;
+}
+
+.actions button {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 11px;
+  border: 1px solid #ccc;
+  background: #fafafa;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.actions button:hover {
+  background: #eee;
+}
+
+.footer {
+  font-size: 10px;
+  color: #666;
+  margin-top: 8px;
+  border-top: 1px solid #eee;
+  padding-top: 6px;
+}
+
+.footer a {
+  color: #c00;
+  text-decoration: none;
+}

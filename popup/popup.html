@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>YT Rec Fix</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup">
+    <h1>YT Rec Fix</h1>
+    <div class="stats">
+      <div>Blocked videos: <strong id="blocked-count">0</strong></div>
+    </div>
+
+    <div class="toggles">
+      <label>
+        <input type="checkbox" id="hide-blocked" checked>
+        Hide blocked / watched videos in recs
+      </label>
+      <label>
+        <input type="checkbox" id="inject-buttons" checked>
+        Show quick block buttons on recommendations
+      </label>
+      <label>
+        <input type="checkbox" id="show-channel-button">
+        Show "Ch" / "Don't recommend channel" button (off by default — this YT action is irreversible and cannot be easily rolled back)
+      </label>
+      <label>
+        <input type="checkbox" id="auto-block-watch" checked>
+        Auto-block videos when I visit/watch them
+      </label>
+      <label>
+        <input type="checkbox" id="prefer-dislike">
+        Prefer "I don't like the video" reason (stronger)
+      </label>
+      <label>
+        <input type="checkbox" id="debug">
+        Enable debug logging (console)
+      </label>
+    </div>
+
+    <div class="actions">
+      <button id="clear-blocked">Clear all blocked videos</button>
+      <button id="refresh-page">Refresh current YT tab</button>
+    </div>
+
+    <div class="footer">
+      <small>Local only. Signals sent to YouTube when using buttons.</small>
+      <div><a href="#" id="open-options">Advanced / Blocklist</a> (coming soon)</div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

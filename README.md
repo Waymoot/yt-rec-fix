@@ -40,6 +40,21 @@ For repeated development:
 
 Reload the addon in about:debugging after edits.
 
+## Install (Latest Unlisted Version)
+
+For normal use, download the latest signed unlisted version from GitHub Releases (signed by Mozilla, not listed in the public store).
+
+1. Go to the [latest release](https://github.com/Waymoot/yt-rec-fix/releases/latest).
+2. Download the `.xpi` file.
+3. In Firefox, go to `about:addons`.
+4. Click the gear icon (top right) → "Install Add-on From File...".
+5. Select the downloaded `.xpi` file.
+
+**Notes:**
+- This version is **unlisted** — it will not appear in AMO search and will **not auto-update**. Check the releases page for new versions.
+- The addon is signed by Mozilla, so it works on regular Firefox releases.
+- For development or testing the latest code, use the temporary load method above.
+
 ## Contributing
 Issues and pull requests welcome. This project is set up so Grok (in this environment) can drive changes, reviews (`/review`), PR babysitting, and stacked work using the authenticated `gh` CLI + git after the initial setup.
 

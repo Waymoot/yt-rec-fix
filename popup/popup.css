@@ -10,10 +10,25 @@ body {
   padding: 12px;
 }
 
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
 h1 {
   font-size: 16px;
-  margin: 0 0 8px;
+  margin: 0;
   color: #c00;
+}
+
+.version {
+  font-size: 10px;
+  color: #222;
+  font-family: monospace;
+  white-space: nowrap;
+  padding-left: 4px;
 }
 
 .stats {

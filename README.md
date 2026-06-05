@@ -86,6 +86,22 @@ Tips for best results:
 - The addon still lets YouTube's own watched badges and progress work; we layer on top.
 - If YT changes their UI, buttons or automation may stop working temporarily — local hiding continues to function. Update selectors as needed (see content script).
 
+The toolbar icon opens a popup with stats and settings:
+
+<div align="center">
+  <img src="images/addon_03.png" width="70%" alt="Popup settings and toggles for the addon" />
+</div>
+
+This is the popup with settings and adjustments you can make for the addon:
+- **Blocked videos** count (live updating).
+- **Hide blocked / watched videos in recs** — master toggle for local hiding.
+- **Show quick block buttons on recommendations** — injects the Watched / Dislike / (Ch) buttons on rec cards.
+- **Show "Ch" / "Don't recommend channel" button** — off by default (irreversible YT action).
+- **Auto-block videos when I visit/watch them**.
+- **Prefer "I don't like the video" reason** (stronger negative signal).
+- **Enable debug logging (console)**.
+- Buttons to clear the blocklist or refresh the current YouTube tab.
+
 ## How it works (technical)
 - Content script + MutationObserver + periodic scan for robustness on a heavy SPA.
 - Video ID extraction from standard `a[href*="watch?v="]` links (11-char IDs).
@@ -121,9 +137,21 @@ See the plan.md (in session) or manually:
 - Support more surfaces (endscreen, shorts if desired).
 
 ## Development
+
+### Loading the Temporary Add-on (for development)
+
+See the "Install (Development / Temporary)" section above for basic steps.
+
+**Important notes and common pitfalls** (from real testing):
+- Make sure you completely remove any previously installed `.xpi` version of the addon first (same extension ID). Having both the signed `.xpi` and a temporary load active at the same time causes conflicts.
+- You will often see a green dot on the extension icon and messages like "Behörigheter behövs" / "Kör endast för detta besök" (Permissions needed / Only run for this visit).
+- The content script may not auto-inject on YouTube pages until you explicitly grant host permission: click the puzzle piece menu (or the addon icon) → find YT Rec Fix → click the cogwheel/settings → allow "Access your data for www.youtube.com" (or equivalent).
+- After granting, hard reload the YouTube tab. The addon should then work without having to click the addon icon after every page reload.
+- After editing files (especially popup), use the **Reload** button for the temporary addon in `about:debugging` to pick up the changes (popup HTML/CSS/JS changes are not always hot-reloaded automatically).
+- For a smoother dev experience: `npm install -g web-ext` and use `npm run dev` (or `web-ext run --firefox-desktop`).
+
 - Main logic lives in `content/yt-rec-fix.js` (will be the largest file).
-- Edit → reload addon in about:debugging (or web-ext).
-- Use the debug toggle + console.
+- Use the debug toggle in the popup + browser console for logs.
 - To inspect current YT menus: right-click a rec → Inspect, trigger the real 3-dot menu, look at the rendered `ytd-menu-popup-renderer`, `ytd-dismissal-follow-up-renderer`, checkboxes, etc. Update matching code accordingly.
 - Keep selectors defensive (arrays of fallbacks + text/SVG matching).
 

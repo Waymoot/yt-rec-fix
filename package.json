@@ -1,6 +1,6 @@
 {
   "name": "yt-rec-fix",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Firefox addon: one-click watched + not-interested + local hiding for YouTube recommendations",
   "private": true,
   "scripts": {

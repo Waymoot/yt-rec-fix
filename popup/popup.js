@@ -16,6 +16,11 @@ async function setStorage(obj) {
 }
 
 async function loadUI() {
+  // Show current version (from manifest, always in sync)
+  const manifest = ext.runtime.getManifest();
+  const verEl = document.getElementById('version');
+  if (verEl) verEl.textContent = `(ver: ${manifest.version})`;
+
   const data = await getStorage([
     'blockedVideoIds',
     'settings'

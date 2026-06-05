@@ -63,6 +63,27 @@
   const REASON_DISLIKE_TEXT = "I don't like the video";
   const SUBMIT_TEXT = 'Submit';
 
+  // --- Recommendation surfaces where we disable the addon ---
+  // The "pathname" (window.location.pathname) is the part of the URL after the domain.
+  // We only want the addon active on algorithmic recommendation pages (home, search, trending, etc.).
+  // On the paths below we skip button injection, card hiding, and recommendation scanning entirely.
+  // (Auto-tracking the video you actually watch on /watch pages is handled separately in handleWatchPage.)
+  const DISABLED_RECOMMENDATION_PATH_PREFIXES = [
+    '/watch',               // Watch page (sidebar "Up next", related videos, end-of-video recs)
+    '/feed/subscriptions',  // Your own subscriptions feed — not algo recommendations
+    // Add more here when needed, for example:
+    // '/feed/history',
+    // '/feed/library',
+    // '/playlist',
+  ];
+
+  function isRecommendationProcessingDisabled() {
+    const path = location.pathname;
+    return DISABLED_RECOMMENDATION_PATH_PREFIXES.some(prefix =>
+      path === prefix || path.startsWith(prefix)
+    );
+  }
+
   // In-memory state
   let blockedVideoIds = new Set();
   let blockedChannels = new Set(); // channel names/handles for now
@@ -290,6 +311,12 @@
   }
 
   function processRecommendations() {
+    if (isRecommendationProcessingDisabled()) {
+      // Clean up any buttons we injected before navigating here (YouTube is an SPA).
+      document.querySelectorAll('.yt-rec-fix-btn-wrapper').forEach(w => w.remove());
+      return;
+    }
+
     const cards = findCards();
 
     for (const card of cards) {

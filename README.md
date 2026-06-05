@@ -1,13 +1,26 @@
 # YT Rec Fix (Watched Blocker)
 
-**Repository:** https://github.com/Waymoot/yt-rec-fix (private)
+**Repository:** https://github.com/Waymoot/yt-rec-fix
 
 Firefox addon that makes it trivial to tell YouTube "I watched this and don't want it recommended again", plus **reliable local client-side hiding** of watched/re-blocked videos so they stop appearing in recommendations immediately.
 
 Addresses the pain: manually clicking through 5 steps (⋯ → Not interested → Tell us why → checkboxes → Submit) is tedious and often ineffective. This addon reduces it to 1 click and guarantees the video won't show up again for you via local suppression.
 
+### This is what you have to click today
+
+<div align="center">
+  <img src="images/addon_01.png" width="70%" alt="This is what you have to click today" />
+</div>
+
+### Now you can do it in one click!
+
+<div align="center">
+  <img src="images/addon_02.png" width="45%" alt="One click: Watched button" />
+  <img src="images/addon_04.png" width="45%" alt="One click: Dislike + Channel button" />
+</div>
+
 ## Features (v0.1)
-- Adds small, quick buttons directly on recommended video cards (homepage, sidebar related, search results, etc.):
+- Adds small, quick buttons directly on recommended video cards (homepage, sidebar related, etc.):
   - "Watched" — triggers full "Not interested" + "I've already watched the video" (+ optionally "I don't like").
   - "Dislike" — stronger negative signal.
   - "Ch" / "Don't recommend channel" — **opt-in only via popup checkbox (default: OFF)**. This is a very hard/irreversible action on YouTube that cannot be easily rolled back, so the button is not shown by default to prevent misclicks. Local channel hiding (for any channels you have previously acted on) continues to work under the main "Hide blocked / watched videos" toggle.

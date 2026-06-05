@@ -1,0 +1,3 @@
+# Files to exclude from web-ext build (in addition to .gitignore)
+package.json
+package-lock.json

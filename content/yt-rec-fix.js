@@ -247,7 +247,7 @@
     wrapper.className = 'yt-rec-fix-btn-wrapper';
     // Position the wrapper near top-right of the parent area
     wrapper.style.position = 'absolute';
-    wrapper.style.top = '4px';
+    wrapper.style.top = '40px';
     wrapper.style.right = '4px';
     wrapper.style.display = 'flex';
     wrapper.style.flexDirection = 'column';

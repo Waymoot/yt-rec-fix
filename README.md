@@ -89,7 +89,7 @@ Tips for best results:
 The toolbar icon opens a popup with stats and settings:
 
 <div align="center">
-  <img src="images/addon_03.png" width="70%" alt="Popup settings and toggles for the addon" />
+  <img src="images/addon_03.png" width="52%" alt="Popup settings and toggles for the addon" />
 </div>
 
 This is the popup with settings and adjustments you can make for the addon:

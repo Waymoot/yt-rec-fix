@@ -1,3 +1,4 @@
-# Files to exclude from web-ext build (in addition to .gitignore)
+# Files to exclude from web-ext build (distribution zip for AMO upload, in addition to .gitignore)
 package.json
 package-lock.json
+images/

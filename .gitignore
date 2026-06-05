@@ -1,16 +1,16 @@
-# web-ext / build
-dist/
-web-ext-artifacts/
-*.zip
-
-# node
-node_modules/
-package-lock.json
 
 # OS / editor
-.DS_Store
+# node
+# web-ext / build
+*.log
 *.swp
+*.xpi
+*.zip
 *~
+.DS_Store
 .idea/
 .vscode/
-*.log
+dist/
+node_modules/
+package-lock.json
+web-ext-artifacts/

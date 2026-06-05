@@ -19,7 +19,7 @@ Addresses the pain: manually clicking through 5 steps (⋯ → Not interested �
   <img src="images/addon_04.png" width="45%" alt="One click: Dislike + Channel button" />
 </div>
 
-## Features (v0.1)
+## Features (v0.1.5)
 - Adds small, quick buttons directly on recommended video cards (homepage, sidebar related, etc.):
   - "Watched" — triggers full "Not interested" + "I've already watched the video" (+ optionally "I don't like").
   - "Dislike" — stronger negative signal.

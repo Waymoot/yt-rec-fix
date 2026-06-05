@@ -1,6 +1,6 @@
 # YT Rec Fix (Watched Blocker)
 
-**Repository:** https://github.com/Waymoot/yt-rec-fix (private)
+**Repository:** https://github.com/Waymoot/yt-rec-fix
 
 Firefox addon that makes it trivial to tell YouTube "I watched this and don't want it recommended again", plus **reliable local client-side hiding** of watched/re-blocked videos so they stop appearing in recommendations immediately.
 

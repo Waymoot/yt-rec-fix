@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YT Rec Fix (Watched Blocker)",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "One-click 'watched + not interested' feedback + reliable local hiding to stop YouTube from re-recommending videos you've already watched. Makes the 5-step process instant.",
   "icons": {
     "16": "icons/icon-16.png",
@@ -27,7 +27,10 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "yt-rec-fix@danney.ytaddon",
-      "strict_min_version": "109.0"
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   }
 }

@@ -65,16 +65,18 @@
 
   // --- Recommendation surfaces where we disable the addon ---
   // The "pathname" (window.location.pathname) is the part of the URL after the domain.
-  // We only want the addon active on algorithmic recommendation pages (home, search, trending, etc.).
+  // We only want the addon active on main algorithmic recommendation pages (home, trending, etc.).
+  // Search (/results), channel pages (/@...), subscriptions, history, playlists and watch are intentionally disabled
+  // (different card designs or not relevant as rec feeds).
   // On the paths below we skip button injection, card hiding, and recommendation scanning entirely.
   // (Auto-tracking the video you actually watch on /watch pages is handled separately in handleWatchPage.)
   const DISABLED_RECOMMENDATION_PATH_PREFIXES = [
     '/watch',               // Watch page (sidebar "Up next", related videos, end-of-video recs)
     '/feed/subscriptions',  // Your own subscriptions feed — not algo recommendations
-    // Add more here when needed, for example:
-    // '/feed/history',
-    // '/feed/library',
-    // '/playlist',
+    '/feed/history',        // Your watch history — not algo recommendations
+    '/playlist',            // Playlists (your own lists, not recommendations)
+    '/@',                   // Channel/user profile pages (/@username) — uploads & own content, not algo recs
+    '/results',             // Search results pages — different card design, prevent mismatched buttons/hiding
   ];
 
   function isRecommendationProcessingDisabled() {

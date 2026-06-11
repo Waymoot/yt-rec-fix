@@ -56,8 +56,9 @@
     channel: 'M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1Zm0 2a9 9 0 110 18.001A9 9 0 0112 3Zm4 8H8a1 1 0 000 2h8a1 1 0 000-2Z',
   };
 
-  // For the "Tell us why" follow-up (from 1-click userscript + observation).
-  // These are fragile; we fall back to text queries too.
+  // Centralized strings for the "Tell us why" + reason flow (now actively used in matching).
+  // These match the current YouTube UI shown in screenshots/Tell_us_why*.png.
+  // Kept as constants so future YT text changes are easy to update in one place.
   const TELL_US_WHY_TEXT = 'Tell us why';
   const REASON_WATCHED_TEXT = "I've already watched the video";
   const REASON_DISLIKE_TEXT = "I don't like the video";
@@ -200,14 +201,14 @@
   }
 
   // --- Hiding ---
-  function hideCard(card) {
+  function hideCard(card, vid = null) {
     if (!card || card.hasAttribute('data-yt-rec-fix-hidden')) return;
     card.setAttribute('data-yt-rec-fix-hidden', 'true');
     // Also a class for extra styling if wanted
     card.classList.add('yt-rec-fix-just-blocked');
     // Remove the class after a moment (the attribute keeps it hidden)
     setTimeout(() => card.classList.remove('yt-rec-fix-just-blocked'), 400);
-    log('hid card', getVideoId(card));
+    log('hid card', vid || getVideoId(card));
   }
 
   function unhideCard(card) {
@@ -322,13 +323,14 @@
     const cards = findCards();
 
     for (const card of cards) {
-      if (shouldHideCard(card)) {
+      const isPendingFeedback = card.hasAttribute('data-yt-rec-fix-feedback-pending');
+      if (shouldHideCard(card) && !isPendingFeedback) {
         hideCard(card);
         // Still allow un-hiding via clear, but buttons not needed on hidden
         continue;
       }
 
-      if (settings.injectButtons && !isCardHidden(card)) {
+      if (settings.injectButtons && !isCardHidden(card) && !isPendingFeedback) {
         ensureButtons(card);
       }
     }
@@ -341,13 +343,21 @@
 
   // --- YT feedback automation ---
   // Core idea from nah.js + kannanmavila 1-click script.
-  // We do local block + hide FIRST (reliable), then attempt the full menu dance.
+  // IMPORTANT (2026 update): We record the local block *early* for durability, but we must
+  // NOT visually hide the card (via data-yt-rec-fix-hidden) until AFTER the full YT feedback
+  // automation has completed. YouTube often creates a replacement "Tell us why" panel / dialog
+  // (with the reason checkboxes + Submit) in or around the original card element when the user
+  // (or addon) clicks "Not interested". Hiding the card too early also hides or neuters the
+  // very buttons/panel ("the new card that YT creates") that we need to interact with to send
+  // the detailed "I've already watched" / "I don't like" signals. See screenshots/Tell_us_why*.png.
+  // Therefore: feedback automation first (on the live UI), reliable local hide second.
 
   async function handleBlockAction(card, actionType) {
     const vid = getVideoId(card);
     const ch = getChannelKey(card);
 
-    // Always do the reliable local thing immediately
+    // Record the block early so it is durable (even if feedback or page navigation happens).
+    // The *visual* hide is deliberately deferred until after we have talked to YT.
     if (vid) {
       blockedVideoIds.add(vid);
     }
@@ -356,180 +366,390 @@
     }
     await persistBlocked();
 
-    hideCard(card);
+    // Mark this specific card so that concurrent processRecommendations / MutationObserver
+    // scans (which also call shouldHideCard) won't prematurely hide it while we are
+    // interacting with the "Not interested" menu + the YT-created Tell us why panel.
+    // The attribute is transient and removed right before the final hideCard.
+    if (card) card.setAttribute('data-yt-rec-fix-feedback-pending', 'true');
 
-    // Now try to tell YouTube (best effort, non-blocking for UX)
+    // Clean up our own injected buttons immediately (less visual noise during the short
+    // automation window). We intentionally leave the card itself visible so YT can
+    // render its replacement "Video removed" / "Tell us why" UI in the right place.
+    const ourWrapper = card && card.querySelector('.yt-rec-fix-btn-wrapper');
+    if (ourWrapper) ourWrapper.remove();
+
+    // Now try to tell YouTube using the live (not-yet-hidden) DOM.
+    // This is best-effort; local block is already persisted above.
     try {
-      await triggerYouTubeFeedback(card, actionType, vid);
+      const fbResult = await triggerYouTubeFeedback(card, actionType, vid);
+      if (settings.debug) {
+        log('handleBlockAction: feedback result returned to caller', fbResult);
+      }
     } catch (e) {
       log('feedback automation error (local block still active)', e);
     }
+
+    // Feedback attempt finished (success or partial). Now it is safe to apply the reliable
+    // local visual hide. Remove the transient guard first.
+    if (card) card.removeAttribute('data-yt-rec-fix-feedback-pending');
+    hideCard(card, vid);
 
     // Re-process soon in case more cards appeared
     debouncedProcess();
   }
 
   async function triggerYouTubeFeedback(card, actionType, vid) {
-    // 1. Find the menu button inside this card (multiple possible locations)
-    const menuBtnSelectors = [
-      '#menu #button yt-icon',
-      'yt-icon-button#button',
-      '.ytLockupMetadataViewModelMenuButton button',
-      'yt-icon-button[aria-label*="More"] button',
-      'button[aria-label*="More actions"]',
-      '#button yt-icon',
-    ];
+    const start = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    const debugOn = !!settings.debug;
 
-    let menuButton = null;
-    for (const sel of menuBtnSelectors) {
-      menuButton = card.querySelector(sel);
-      if (menuButton) break;
+    if (debugOn) {
+      console.groupCollapsed('[YT-Rec-Fix] ▶ triggerYouTubeFeedback', actionType, vid || 'no-vid');
     }
-    if (!menuButton) {
-      // Sometimes the menu lives a bit higher
-      menuButton = card.querySelector('yt-icon-button, #menu button');
-    }
-    if (!menuButton) {
-      log('Could not locate menu button for card', vid);
-      return;
-    }
+
+    let phase = 'start';
+    let outcome = { ok: false, phase: 'start', actionType, vid: vid || null, reason: null };
 
     // Temporarily hide popups to reduce flicker (common trick)
     const popupContainer = document.querySelector('ytd-popup-container');
     if (popupContainer) popupContainer.style.visibility = 'hidden';
 
-    // Click the menu
-    menuButton.click();
-
-    // Give the menu time to render (YT is async)
-    await sleep(80);
-
-    // 2. Find the popup menu (try recent + classic)
-    const popupWrapper = document.querySelector('tp-yt-iron-dropdown:last-of-type') ||
-                         document.querySelector('ytd-menu-popup-renderer') ||
-                         document.querySelector('yt-list-view-model');
-
-    if (!popupWrapper) {
-      log('No popup wrapper found after menu click');
+    // Ensure we always restore visibility and close group
+    const finish = async (ok, reason, extra) => {
+      phase = 'cleanup';
+      await sleep(40);
       restorePopup(popupContainer);
-      return;
-    }
 
-    // Look inside for the action items (ytd-menu-service-item-renderer or yt-list-item-view-model)
-    const items = Array.from(
-      popupWrapper.querySelectorAll(
-        'ytd-menu-service-item-renderer, yt-list-item-view-model, tp-yt-paper-item, ytd-menu-navigation-item-renderer'
-      )
-    );
+      const dur = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - start;
+      outcome = { ok, phase, actionType, vid: vid || null, reason: reason || null, durationMs: Math.round(dur), ...extra };
 
-    let targetItem = null;
-    for (const item of items) {
-      const text = (item.textContent || '').trim().toLowerCase();
-      const svg = item.querySelector('svg');
+      log('Feedback automation result', outcome);
 
-      if (actionType === 'channel') {
-        if (text.includes('recommend channel') || hasMatchingPath(svg, ACTION_SVG_PATHS.channel)) {
-          targetItem = item;
+      // Only for non-channel actions that reached the "tell us why" / submit stage, look for UI proof
+      if (ok && actionType !== 'channel') {
+        try {
+          await verifyFeedbackUIEvidence();
+        } catch (e) {
+          log('verify UI evidence error (non-fatal)', e);
+        }
+      }
+
+      if (debugOn) {
+        console.groupEnd();
+      }
+      return outcome;
+    };
+
+    try {
+      // 1. Find the menu button inside this card (multiple possible locations)
+      phase = 'find-menu-button';
+      const menuBtnSelectors = [
+        '#menu #button yt-icon',
+        'yt-icon-button#button',
+        '.ytLockupMetadataViewModelMenuButton button',
+        'yt-icon-button[aria-label*="More"] button',
+        'button[aria-label*="More actions"]',
+        '#button yt-icon',
+      ];
+
+      let menuButton = null;
+      let usedSelector = null;
+      for (const sel of menuBtnSelectors) {
+        const found = card.querySelector(sel);
+        if (found) {
+          menuButton = found;
+          usedSelector = sel;
           break;
         }
-      } else {
-        // nah / watched / dislike all start with "Not interested"
-        if (text.includes('not interested') || hasMatchingPath(svg, ACTION_SVG_PATHS.nah)) {
-          targetItem = item;
-          break;
-        }
       }
-    }
-
-    if (!targetItem) {
-      log('Could not find matching menu item (Not interested / channel)');
-      restorePopup(popupContainer);
-      return;
-    }
-
-    targetItem.click();
-
-    // If this is just channel block, we're done after the first level.
-    if (actionType === 'channel') {
-      await sleep(60);
-      restorePopup(popupContainer);
-      return;
-    }
-
-    // 3. "Not interested" was clicked → now handle "Tell us why" follow-up if it appears.
-    // The "Tell us why" button usually appears in the place of the original card or as a small button after dismiss.
-    await sleep(120);
-
-    // Try to find a "Tell us why" button that is associated with this action.
-    // It can be inside the original card area (ytd-button-renderer) or global recent.
-    let tellUsWhyBtn = null;
-
-    // Common locations after dismiss
-    const possibleTell = card.querySelectorAll('ytd-button-renderer button, yt-button-renderer button, button');
-    for (const b of possibleTell) {
-      if ((b.textContent || '').toLowerCase().includes('tell us why')) {
-        tellUsWhyBtn = b;
-        break;
+      if (!menuButton) {
+        // Sometimes the menu lives a bit higher
+        menuButton = card.querySelector('yt-icon-button, #menu button');
+        if (menuButton) usedSelector = 'fallback:yt-icon-button|#menu button';
       }
-    }
-    if (!tellUsWhyBtn) {
-      // broader search in recent dropdowns
-      const recent = document.querySelector('tp-yt-iron-dropdown:last-of-type ytd-button-renderer button, ytd-button-renderer button');
-      if (recent && (recent.textContent || '').toLowerCase().includes('tell us why')) {
-        tellUsWhyBtn = recent;
+
+      if (!menuButton) {
+        log('Could not locate menu button for card', vid, 'tried selectors:', menuBtnSelectors);
+        return await finish(false, 'no-menu-button', { triedSelectors: menuBtnSelectors });
       }
-    }
 
-    if (tellUsWhyBtn) {
-      tellUsWhyBtn.click();
-      await sleep(100);
+      log('Menu button located via', usedSelector, '->', describeEl(menuButton));
 
-      // 4. The follow-up dialog: ytd-dismissal-follow-up-renderer (or similar)
-      const followUp = document.querySelector('ytd-dismissal-follow-up-renderer') ||
-                       document.querySelector('yt-confirm-dialog-renderer') ||
-                       document.querySelector('[role="dialog"]');
+      // Click the menu
+      log('Clicking 3-dot menu...');
+      menuButton.click();
 
-      if (followUp) {
-        const checkboxes = followUp.querySelectorAll('tp-yt-paper-checkbox, yt-checkbox, input[type="checkbox"], .checkbox');
-        let watchedCb = null;
-        let dislikeCb = null;
+      // Give the menu time to render (YT is async)
+      await sleep(90);
+      log('Menu click done, searching for popup container...');
 
-        for (const cb of checkboxes) {
-          const labelText = (cb.textContent || cb.parentElement?.textContent || '').toLowerCase();
-          if (labelText.includes('already watched')) watchedCb = cb;
-          if (labelText.includes("don't like") || labelText.includes('dislike')) dislikeCb = cb;
+      // 2. Find the popup menu (try recent + classic)
+      phase = 'find-popup';
+      let popupWrapper = document.querySelector('tp-yt-iron-dropdown:last-of-type');
+      let popupHow = 'tp-yt-iron-dropdown:last-of-type';
+      if (!popupWrapper) {
+        popupWrapper = document.querySelector('ytd-menu-popup-renderer');
+        popupHow = 'ytd-menu-popup-renderer';
+      }
+      if (!popupWrapper) {
+        popupWrapper = document.querySelector('yt-list-view-model');
+        popupHow = 'yt-list-view-model';
+      }
+
+      if (!popupWrapper) {
+        log('No popup wrapper found after menu click. Queried: tp-yt-iron-dropdown:last-of-type, ytd-menu-popup-renderer, yt-list-view-model');
+        return await finish(false, 'no-popup-wrapper');
+      }
+      log('Popup wrapper found via', popupHow, describeEl(popupWrapper));
+
+      // Look inside for the action items
+      phase = 'find-menu-item';
+      const items = Array.from(
+        popupWrapper.querySelectorAll(
+          'ytd-menu-service-item-renderer, yt-list-item-view-model, tp-yt-paper-item, ytd-menu-navigation-item-renderer'
+        )
+      );
+
+      // IMPORTANT for debugging: dump everything we see in the menu
+      const itemDump = items.map((item, idx) => {
+        const text = (item.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 70);
+        const svg = item.querySelector('svg');
+        let pathMatch = false;
+        if (svg) {
+          const paths = Array.from(svg.querySelectorAll('path')).map(p => p.getAttribute('d') || '');
+          pathMatch = paths.some(d => d === ACTION_SVG_PATHS.nah || d === ACTION_SVG_PATHS.channel);
         }
+        return { idx, text, hasSvg: !!svg, pathMatch };
+      });
+      log('Menu items discovered (' + items.length + '):', itemDump);
 
-        // Click desired reasons. User setting controls whether we also pick "I don't like".
-        if (watchedCb) {
-          if (!watchedCb.checked) watchedCb.click();
-        }
-        if ((settings.preferDislike || actionType === 'dislike') && dislikeCb) {
-          if (!dislikeCb.checked) dislikeCb.click();
-        }
+      let targetItem = null;
+      let matchReason = null;
+      for (const item of items) {
+        const text = (item.textContent || '').trim().toLowerCase();
+        const svg = item.querySelector('svg');
 
-        // Find and click submit / done button
-        const buttons = followUp.querySelectorAll('ytd-button-renderer button, yt-button-renderer button, button');
-        let submitBtn = null;
-        for (const b of buttons) {
-          if ((b.textContent || '').trim().toLowerCase() === 'submit' ||
-              (b.textContent || '').trim().toLowerCase().includes('submit')) {
-            submitBtn = b;
+        if (actionType === 'channel') {
+          const textHit = text.includes('recommend channel');
+          const svgHit = hasMatchingPath(svg, ACTION_SVG_PATHS.channel);
+          if (textHit || svgHit) {
+            targetItem = item;
+            matchReason = textHit ? 'text:recommend-channel' : 'svg:channel';
+            break;
+          }
+        } else {
+          // nah / watched / dislike all start with "Not interested"
+          const textHit = text.includes('not interested');
+          const svgHit = hasMatchingPath(svg, ACTION_SVG_PATHS.nah);
+          if (textHit || svgHit) {
+            targetItem = item;
+            matchReason = textHit ? 'text:not-interested' : 'svg:nah';
             break;
           }
         }
-        if (submitBtn) {
-          submitBtn.click();
-        } else {
-          // Sometimes the last button is submit
-          if (buttons.length > 0) buttons[buttons.length - 1].click();
+      }
+
+      if (!targetItem) {
+        log('Could not find matching menu item (Not interested / channel). See itemDump above for what was actually present.');
+        return await finish(false, 'no-matching-menu-item', { itemDump });
+      }
+
+      log('Target menu item chosen:', describeEl(targetItem), 'reason:', matchReason);
+      targetItem.click();
+
+      // If this is just channel block, we're done after the first level.
+      if (actionType === 'channel') {
+        await sleep(70);
+        log('Channel-only action completed (no Tell us why step)');
+        return await finish(true, 'channel-action');
+      }
+
+      // 3. "Not interested" was clicked.
+      // Current YouTube behavior (see screenshots/Tell_us_why.png and Tell_us_why_submit.png):
+      // YT often creates a "Tell us why" reason chooser panel directly (or via a short-lived
+      // "Video removed" + "Tell us why" button in the feed). This panel contains the two
+      // checkboxes we care about + Cancel/Submit. It can appear as a small dark panel or a
+      // centered popup (outside the original card).
+      //
+      // We must NOT have hidden the card yet (see handleBlockAction + the pending attribute).
+      // Strategy:
+      //   - First try to find the reason chooser *directly* (newer/simpler flow).
+      //   - If not present quickly, fall back to finding+clicking a "Tell us why" button
+      //     (the "Video removed" row path from resulting_code.png).
+      // Use waitFor for robustness instead of only fixed sleeps.
+      phase = 'find-tell-us-why-or-reason-panel';
+      log('Post "Not interested" — looking for YT-created Tell us why reason panel or button...');
+
+      // Helper to recognize the direct reason chooser (the panel with the actual options).
+      const findDirectReasonPanel = () => {
+        // Look in likely dialog/panel containers (the chooser can be centered or near the card area).
+        const candidates = document.querySelectorAll(
+          'yt-confirm-dialog-renderer, [role="dialog"], ytd-dismissal-follow-up-renderer, paper-dialog, tp-yt-paper-dialog, [class*="dialog"], [class*="popup"]'
+        );
+        for (const c of candidates) {
+          const txt = (c.textContent || '').toLowerCase();
+          // Strong signal: the panel contains one (or both) of the reason strings we want to submit.
+          if (txt.includes(REASON_WATCHED_TEXT.toLowerCase()) ||
+              txt.includes(REASON_DISLIKE_TEXT.toLowerCase())) {
+            return c;
+          }
+          // Also accept a container whose title/heading is exactly "Tell us why" and that has
+          // interactive controls (buttons or checkboxes) — covers the panel shown in the screenshots.
+          const heading = c.querySelector('h2, [role="heading"], .title, yt-formatted-string');
+          if (heading && (heading.textContent || '').trim().toLowerCase() === TELL_US_WHY_TEXT.toLowerCase() &&
+              (c.querySelector('button, input[type="checkbox"], tp-yt-paper-checkbox, yt-checkbox') || c.querySelectorAll('button').length >= 2)) {
+            return c;
+          }
+        }
+        return null;
+      };
+
+      // 3a. Try the direct reason panel first (covers the flow where clicking "Not interested"
+      // in the menu surfaces the checkboxes titled "Tell us why" without an extra button).
+      let followUp = await waitFor(findDirectReasonPanel, { timeoutMs: 900, intervalMs: 50 });
+
+      if (followUp) {
+        log('Direct reason chooser panel located (Tell us why options visible immediately):', describeEl(followUp));
+      } else {
+        // 3b. Fall back to the classic "find Tell us why button then open the chooser".
+        // This still supports the "Video removed" + white "Tell us why" button path.
+        phase = 'find-tell-us-why-button';
+        log('No direct reason panel yet — looking for "Tell us why" button (older "Video removed" row path)...');
+
+        let tellUsWhyBtn = null;
+        let tellHow = null;
+
+        const findTellUsWhyButton = () => {
+          // Prefer elements near the original card, then global recent UI.
+          const btns = card ? card.querySelectorAll('ytd-button-renderer button, yt-button-renderer button, button') : [];
+          for (const b of btns) {
+            if ((b.textContent || '').toLowerCase().includes(TELL_US_WHY_TEXT.toLowerCase())) return b;
+          }
+          const recent = document.querySelector('tp-yt-iron-dropdown:last-of-type ytd-button-renderer button, ytd-button-renderer button, [role="dialog"] button');
+          if (recent && (recent.textContent || '').toLowerCase().includes(TELL_US_WHY_TEXT.toLowerCase())) {
+            return recent;
+          }
+          // Last resort: any button with the text anywhere (the chooser button can be floating).
+          const any = document.querySelectorAll('button, ytd-button-renderer, yt-button-renderer');
+          for (const b of any) {
+            if ((b.textContent || '').toLowerCase().includes(TELL_US_WHY_TEXT.toLowerCase())) return b;
+          }
+          return null;
+        };
+
+        tellUsWhyBtn = await waitFor(findTellUsWhyButton, { timeoutMs: 1100, intervalMs: 60 });
+
+        if (!tellUsWhyBtn) {
+          log('No "Tell us why" button and no direct reason panel found. The flow may have stopped at first-level "Not interested" (still a valid signal) or UI changed.');
+          return await finish(true, 'no-tell-us-why-but-nah-sent');
+        }
+
+        log('Tell us why button found — clicking it to open the reason chooser:', describeEl(tellUsWhyBtn));
+        tellUsWhyBtn.click();
+
+        // Now wait for the actual chooser/popup that contains the checkboxes.
+        followUp = await waitFor(findDirectReasonPanel, { timeoutMs: 1100, intervalMs: 50 });
+        if (!followUp) {
+          // Broad fallback (kept for compatibility with older YT renderers).
+          followUp = document.querySelector('ytd-dismissal-follow-up-renderer') ||
+                     document.querySelector('yt-confirm-dialog-renderer') ||
+                     document.querySelector('[role="dialog"]');
+        }
+
+        if (!followUp) {
+          log('Follow-up reason chooser not found after clicking Tell us why button. Possible UI change or timing.');
+          return await finish(true, 'nah-sent-no-followup-dialog');
+        }
+        log('Reason chooser / follow-up located after Tell us why button:', describeEl(followUp));
+      }
+
+      // Checkboxes
+      phase = 'handle-checkboxes';
+      const checkboxes = followUp.querySelectorAll('tp-yt-paper-checkbox, yt-checkbox, input[type="checkbox"], .checkbox, ytd-checkbox');
+      let watchedCb = null;
+      let dislikeCb = null;
+      const cbDump = [];
+
+      for (const cb of checkboxes) {
+        const labelText = ((cb.textContent || '') + ' ' + (cb.parentElement?.textContent || '')).trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 80);
+        cbDump.push({ el: describeEl(cb), labelText });
+        // Use the centralized constants (more maintainable and matches the strings in Tell_us_why*.png)
+        if (labelText.includes(REASON_WATCHED_TEXT.toLowerCase())) watchedCb = cb;
+        if (labelText.includes(REASON_DISLIKE_TEXT.toLowerCase()) ||
+            labelText.includes("don't like") || labelText.includes('dislike') || labelText.includes('i do not like')) {
+          dislikeCb = cb;
         }
       }
-    }
 
-    await sleep(60);
-    restorePopup(popupContainer);
-    log('Feedback automation complete for', vid || 'unknown', actionType);
+      log('Checkboxes found in follow-up (' + checkboxes.length + '):', cbDump);
+
+      // Click desired reasons. User setting controls whether we also pick "I don't like".
+      let reasonsClicked = [];
+      if (watchedCb) {
+        if (!watchedCb.checked) {
+          watchedCb.click();
+          reasonsClicked.push('watched');
+          log('Clicked watched reason checkbox:', describeEl(watchedCb));
+        } else {
+          log('Watched checkbox already checked');
+        }
+      } else {
+        log('WARNING: could not locate "I\'ve already watched" checkbox. Label dump above.');
+      }
+
+      const wantDislike = (settings.preferDislike || actionType === 'dislike');
+      if (wantDislike && dislikeCb) {
+        if (!dislikeCb.checked) {
+          dislikeCb.click();
+          reasonsClicked.push('dislike');
+          log('Clicked dislike reason checkbox:', describeEl(dislikeCb));
+        }
+      } else if (wantDislike) {
+        log('Wanted dislike reason but did not find matching checkbox (preferDislike=' + settings.preferDislike + ', action=' + actionType + ')');
+      }
+
+      // Find and click submit / done button
+      phase = 'find-submit';
+      const buttons = followUp.querySelectorAll('ytd-button-renderer button, yt-button-renderer button, button, yt-button');
+      let submitBtn = null;
+      for (const b of buttons) {
+        const bt = (b.textContent || '').trim().toLowerCase();
+        // Use SUBMIT_TEXT constant + common fallbacks (Cancel/Submit pattern visible in the screenshots)
+        if (bt === SUBMIT_TEXT.toLowerCase() || bt.includes(SUBMIT_TEXT.toLowerCase()) ||
+            bt === 'done' || bt.includes('done')) {
+          submitBtn = b;
+          break;
+        }
+      }
+      if (!submitBtn && buttons.length > 0) {
+        // Fallback: last button is often the affirmative action
+        submitBtn = buttons[buttons.length - 1];
+      }
+
+      if (submitBtn) {
+        log('Clicking submit button:', describeEl(submitBtn), 'reasonsClicked:', reasonsClicked);
+        submitBtn.click();
+
+        // Immediately suppress the YT-created "Video removed" / Tell us why panel (the
+        // intermediate state visible in screenshots/resulting_code.png) now that we have
+        // successfully clicked the reasons and submit. This reduces the ~1s flash for users
+        // without affecting our clicks (they have already been dispatched).
+        if (followUp) {
+          followUp.setAttribute('data-yt-rec-fix-hidden', 'true');
+        }
+      } else {
+        log('No submit button found among', buttons.length, 'buttons in dialog. reasonsClicked so far:', reasonsClicked);
+      }
+
+      // Give the click a moment to be processed by YT before we verify + restore
+      await sleep(80);
+
+      log('Primary feedback flow completed (Not interested + reasons submitted if found).');
+      return await finish(true, 'full-flow-completed', { reasonsClicked, cbCount: checkboxes.length });
+
+    } catch (e) {
+      log('Exception during feedback automation at phase', phase, e);
+      return await finish(false, 'exception', { error: String(e && e.message || e), phase });
+    }
   }
 
   function hasMatchingPath(svgEl, targetPath) {
@@ -547,6 +767,157 @@
 
   function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
+  }
+
+  /**
+   * Small polling helper to wait for an element (or condition) to appear.
+   * Used to make the post-"Not interested" discovery of YT's "Tell us why" panel / button
+   * and the reason chooser more reliable than blind fixed sleeps.
+   *
+   * @param {string|Function} matcher - CSS selector string, or a function that returns the element (or null/falsy).
+   * @param {{timeoutMs?: number, intervalMs?: number}} [options]
+   * @returns {Promise<Element|null>}
+   */
+  async function waitFor(matcher, { timeoutMs = 1200, intervalMs = 60 } = {}) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      let result = null;
+      try {
+        if (typeof matcher === 'function') {
+          result = matcher();
+        } else if (typeof matcher === 'string') {
+          result = document.querySelector(matcher);
+        }
+      } catch (_) {}
+      if (result) return result;
+      await sleep(intervalMs);
+    }
+    return null;
+  }
+
+  // --- Debug helpers ---
+  function describeEl(el) {
+    if (!el) return 'null';
+    try {
+      const tag = (el.tagName || 'unknown').toLowerCase();
+      let txt = (el.textContent || el.getAttribute?.('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 90);
+      const aria = el.getAttribute?.('aria-label');
+      const role = el.getAttribute?.('role');
+      let extra = '';
+      if (aria) extra += ` aria="${aria.slice(0,40)}"`;
+      if (role) extra += ` role=${role}`;
+      // For inputs/checkboxes include checked state
+      if (el.checked !== undefined) extra += ` checked=${el.checked}`;
+      return `${tag}${extra} "${txt}"`;
+    } catch (_) {
+      return '[describe-error]';
+    }
+  }
+
+  // Lightweight interceptor to prove that real YouTube feedback signals are sent over the wire.
+  // When debug is enabled you will see entries like:
+  //   [YT-Rec-Fix] YT network: POST https://www.youtube.com/youtubei/v1/feedback?...
+  // This is the actual confirmation that our click simulation caused YT client code to transmit "not interested" etc.
+  let __apiInterceptorsInstalled = false;
+  function setupApiInterceptors() {
+    if (__apiInterceptorsInstalled) return;
+    __apiInterceptorsInstalled = true;
+
+    // Patch fetch (primary for modern YT innertube calls)
+    try {
+      const origFetch = window.fetch;
+      window.fetch = async function(input, init) {
+        try {
+          if (settings.debug) {
+            const u = (typeof input === 'string' ? input : (input && input.url) || '').toString();
+            if (u.includes('youtube.com') && (/feedback|dislike|like|browse|next|player/i.test(u) || u.includes('youtubei'))) {
+              const method = (init && init.method ? init.method : 'GET').toUpperCase();
+              log('YT network:', method, u);
+              // Best-effort: surface feedback bodies (the actual signal payload)
+              if (u.includes('feedback') && init && init.body) {
+                const body = typeof init.body === 'string' ? init.body : null;
+                if (body && body.length < 3000) {
+                  log('  feedback payload (first 600):', body.slice(0, 600));
+                }
+              }
+            }
+          }
+        } catch (_) {}
+        return origFetch.apply(this, arguments);
+      };
+    } catch (e) {
+      console.warn('[YT-Rec-Fix] could not patch fetch for debug', e);
+    }
+
+    // Also patch XHR (some YT paths still use it)
+    try {
+      const Orig = window.XMLHttpRequest;
+      const origOpen = Orig.prototype.open;
+      const origSend = Orig.prototype.send;
+      Orig.prototype.open = function(method, url, ...rest) {
+        this.__ytUrl = url;
+        this.__ytMethod = method;
+        return origOpen.call(this, method, url, ...rest);
+      };
+      Orig.prototype.send = function(body) {
+        try {
+          if (settings.debug && this.__ytUrl) {
+            const u = String(this.__ytUrl);
+            if (u.includes('youtube.com') && (/feedback|youtubei/i.test(u))) {
+              log('YT XHR:', this.__ytMethod || 'POST', u);
+              if (u.includes('feedback') && body && typeof body === 'string' && body.length < 2000) {
+                log('  xhr feedback body:', body.slice(0, 500));
+              }
+            }
+          }
+        } catch (_) {}
+        return origSend.call(this, body);
+      };
+    } catch (e) {
+      console.warn('[YT-Rec-Fix] could not patch XHR for debug', e);
+    }
+  }
+
+  // Try to find evidence in the DOM that YT registered the feedback (toast, undo banner, card state change).
+  async function verifyFeedbackUIEvidence() {
+    // Give YT a moment to render confirmation UI
+    await sleep(180);
+
+    const evidence = [];
+
+    // Common toast / snackbar after not-interested
+    const toasts = document.querySelectorAll('ytd-toast-renderer, paper-toast, .ytd-app[role="alert"], [class*="toast"]');
+    for (const t of toasts) {
+      const ttxt = (t.textContent || '').trim().toLowerCase();
+      if (ttxt.includes('not interested') || ttxt.includes('recommend') || ttxt.includes('got it') || ttxt.includes('undo') || ttxt.includes('hidden')) {
+        evidence.push('toast:' + describeEl(t).slice(0,120));
+      }
+    }
+
+    // "Undo" link that often appears in place of the dismissed card (or as a separate row)
+    const undos = document.querySelectorAll('yt-button, ytd-button-renderer, a, button');
+    for (const u of undos) {
+      const ut = (u.textContent || '').trim().toLowerCase();
+      if (ut === 'undo' || ut.includes('undo')) {
+        evidence.push('undo:' + describeEl(u));
+      }
+    }
+
+    // Sometimes a temporary "We'll use this..." banner replaces the card area
+    const banners = document.querySelectorAll('ytd-compact-link-renderer, .ytd-item-section-renderer, [class*="dismiss"]');
+    for (const b of banners) {
+      const bt = (b.textContent || '').toLowerCase();
+      if (bt.includes('use this') || bt.includes('improve') || bt.includes('no longer')) {
+        evidence.push('banner:' + bt.replace(/\s+/g,' ').slice(0,100));
+      }
+    }
+
+    if (evidence.length) {
+      log('Post-feedback UI evidence found (good sign YT reacted):', evidence);
+    } else {
+      log('No obvious post-feedback confirmation UI detected (this can be normal; YT UI varies)');
+    }
+    return evidence;
   }
 
   // --- Watch page tracking ---
@@ -654,7 +1025,11 @@
           settings = { ...settings, ...newS };
 
           if (newS.debug !== undefined) {
-            // debug just affects logging
+            // debug just affects logging + enables detailed interceptor output
+            if (newS.debug) {
+              setupApiInterceptors();
+              log('debug enabled - expect verbose feedback traces + YT network logs on next button use');
+            }
           }
 
           // If toggles changed, re-process. For showChannelButton we must clean existing injected
@@ -682,10 +1057,16 @@
   async function init() {
     await loadState();
 
+    // Install network interceptor early so we can catch feedback calls when user enables debug + clicks
+    setupApiInterceptors();
+
     log('initialized', {
       blocked: blockedVideoIds.size,
       settings
     });
+    if (settings.debug) {
+      log('Debug mode active on startup. Open browser console (F12) and use buttons to see detailed step traces + intercepted YT feedback network calls.');
+    }
 
     // First sweep
     processRecommendations();
@@ -708,6 +1089,33 @@
       clear: async () => { blockedVideoIds.clear(); blockedChannels.clear(); await persistBlocked(); document.querySelectorAll('[data-yt-rec-fix-hidden]').forEach(unhideCard); },
       reprocess: processRecommendations,
       settings,
+      // --- Extra debug helpers (use in console when debug logging enabled) ---
+      // Example:  const c = document.querySelector('ytd-rich-item-renderer'); __YT_REC_FIX__.debugTriggerFeedback(c, 'watched')
+      debugTriggerFeedback: async (cardEl, actionType = 'watched') => {
+        if (!cardEl) {
+          console.warn('[YT-Rec-Fix] Pass a card DOM element (e.g. a ytd-rich-item-renderer that contains a video)');
+          return null;
+        }
+        const v = getVideoId(cardEl);
+        console.log('[YT-Rec-Fix] manual debug feedback on', v, actionType);
+        try {
+          return await triggerYouTubeFeedback(cardEl, actionType, v);
+        } catch (e) {
+          console.error('[YT-Rec-Fix] manual debug feedback error', e);
+          return { ok: false, error: String(e) };
+        }
+      },
+      // Find first visible rec card and run feedback on it (handy quick test)
+      debugTriggerOnFirstCard: async (actionType = 'watched') => {
+        const cards = findCards().filter(c => !isCardHidden(c));
+        if (!cards.length) {
+          console.warn('[YT-Rec-Fix] No visible cards found');
+          return null;
+        }
+        return window.__YT_REC_FIX__.debugTriggerFeedback(cards[0], actionType);
+      },
+      describeEl,
+      setupApiInterceptors,
     };
   }
 

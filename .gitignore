@@ -14,3 +14,11 @@ dist/
 node_modules/
 package-lock.json
 web-ext-artifacts/
+
+# Local screenshots / debugging captures (not part of the repo)
+screenshots/
+
+# Personal development notes and testing instructions (local only)
+dev-testing.md
+LOCAL-*.md
+*-notes.md

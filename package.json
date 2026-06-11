@@ -1,15 +1,16 @@
 {
   "name": "yt-rec-fix",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Firefox addon: one-click watched + not-interested + local hiding for YouTube recommendations",
   "private": true,
   "scripts": {
-    "dev": "web-ext run --firefox-desktop --source-dir . --verbose",
+    "dev": "web-ext run --target=firefox-desktop --source-dir . --verbose --firefox-binary=${FIREFOX_BINARY:-firefox}",
+    "dev:win": "web-ext run --target=firefox-desktop --source-dir . --verbose --firefox-binary=\"C:\\\\Program Files\\\\Mozilla Firefox\\\\firefox.exe\"",
     "dev:chromium": "web-ext run -t chromium --source-dir .",
     "build": "web-ext build --overwrite-dest --source-dir . --artifacts-dir dist --ignore-files 'package.json' 'package-lock.json' 'images' 'images/**' --filename 'yt-rec-fix-{version}.zip'",
     "lint": "web-ext lint --source-dir ."
   },
   "devDependencies": {
-    "web-ext": "^8.2.0"
+    "web-ext": "^10.3.0"
   }
 }

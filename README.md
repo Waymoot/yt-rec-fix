@@ -19,12 +19,14 @@ Addresses the pain: manually clicking through 5 steps (⋯ → Not interested �
   <img src="images/addon_04.png" width="45%" alt="One click: Dislike + Channel button" />
 </div>
 
-## Features (v0.1.5)
+## Features (v0.1.6)
+- **Reduced flash of intermediate UI**: The temporary "Video removed" + "Tell us why" state that appears during automation is now suppressed almost immediately after we submit the reasons (new in this version). The automation itself remains fully reliable.
 - Adds small, quick buttons directly on recommended video cards (homepage, sidebar related, etc.):
   - "Watched" — triggers full "Not interested" + "I've already watched the video" (+ optionally "I don't like").
   - "Dislike" — stronger negative signal.
   - "Ch" / "Don't recommend channel" — **opt-in only via popup checkbox (default: OFF)**. This is a very hard/irreversible action on YouTube that cannot be easily rolled back, so the button is not shown by default to prevent misclicks. Local channel hiding (for any channels you have previously acted on) continues to work under the main "Hide blocked / watched videos" toggle.
 - **Local persistent blocklist**: once blocked or auto-tracked as watched, matching recommendations are hidden instantly using DOM scanning. Survives reloads, navigation, browser restarts.
+- **Reduced flash of intermediate UI** (new in 0.1.6): The temporary "Video removed" + "Tell us why" panel that YouTube shows during the flow is now hidden almost immediately after we successfully submit the chosen reasons. This makes the experience cleaner for users while the automation (clicks + network signals) remains fully reliable.
 - Auto-tracks videos you open on `/watch` pages (configurable).
 - Popup with:
   - Blocked count.
@@ -108,6 +110,7 @@ This is the popup with settings and adjustments you can make for the addon:
 - Storage: `blockedVideoIds` array + settings object.
 - Menu automation adapted from proven patterns (label + icon SVG matching for "Not interested", "Don't recommend channel"; follow-up reason chooser for "Tell us why"). The "Don't recommend channel" button itself is now gated behind an explicit user setting (default off) per the update request.
 - **Important execution detail (2026)**: Local visual hiding is deliberately deferred until *after* the full feedback automation (Not interested + Tell us why reason panel with "I've already watched the video" / "I don't like the video" + Submit) has run against the live UI that YouTube creates. Hiding the card too early would also hide the replacement panel ("the new card that YT creates") containing the buttons we need to press for the detailed signal. See `screenshots/Tell_us_why.png` + `Tell_us_why_submit.png` (and the code comments in handleBlockAction / triggerYouTubeFeedback).
+- As a UX improvement, the intermediate "Video removed" / Tell us why panel that YouTube shows during the flow is now hidden immediately after our automated submit (right after the clicks succeed). This greatly reduces the visible flash of that temporary state while still allowing the full reason selection to complete reliably.
 - When "Enable debug logging" is on, the automation produces very detailed console output + intercepts the actual `youtubei/v1/feedback` (and related) calls that YouTube's client code makes as a result of the simulated clicks. This gives much stronger evidence that the "watched / not interested / don't like" feedback was transmitted than before. The waitFor polling + broader discovery of the current reason panel helps reliability across YT UI variations.
 - Local hide uses a `data-yt-rec-fix-hidden` attribute + CSS for clean suppression (easy to toggle).
 - No background page needed initially.

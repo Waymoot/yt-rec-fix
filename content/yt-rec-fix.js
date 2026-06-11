@@ -201,14 +201,14 @@
   }
 
   // --- Hiding ---
-  function hideCard(card) {
+  function hideCard(card, vid = null) {
     if (!card || card.hasAttribute('data-yt-rec-fix-hidden')) return;
     card.setAttribute('data-yt-rec-fix-hidden', 'true');
     // Also a class for extra styling if wanted
     card.classList.add('yt-rec-fix-just-blocked');
     // Remove the class after a moment (the attribute keeps it hidden)
     setTimeout(() => card.classList.remove('yt-rec-fix-just-blocked'), 400);
-    log('hid card', getVideoId(card));
+    log('hid card', vid || getVideoId(card));
   }
 
   function unhideCard(card) {
@@ -392,7 +392,7 @@
     // Feedback attempt finished (success or partial). Now it is safe to apply the reliable
     // local visual hide. Remove the transient guard first.
     if (card) card.removeAttribute('data-yt-rec-fix-feedback-pending');
-    hideCard(card);
+    hideCard(card, vid);
 
     // Re-process soon in case more cards appeared
     debouncedProcess();
@@ -728,6 +728,14 @@
       if (submitBtn) {
         log('Clicking submit button:', describeEl(submitBtn), 'reasonsClicked:', reasonsClicked);
         submitBtn.click();
+
+        // Immediately suppress the YT-created "Video removed" / Tell us why panel (the
+        // intermediate state visible in screenshots/resulting_code.png) now that we have
+        // successfully clicked the reasons and submit. This reduces the ~1s flash for users
+        // without affecting our clicks (they have already been dispatched).
+        if (followUp) {
+          followUp.setAttribute('data-yt-rec-fix-hidden', 'true');
+        }
       } else {
         log('No submit button found among', buttons.length, 'buttons in dialog. reasonsClicked so far:', reasonsClicked);
       }
@@ -1085,7 +1093,7 @@
       // Example:  const c = document.querySelector('ytd-rich-item-renderer'); __YT_REC_FIX__.debugTriggerFeedback(c, 'watched')
       debugTriggerFeedback: async (cardEl, actionType = 'watched') => {
         if (!cardEl) {
-          console.warn('Pass a card DOM element (e.g. a ytd-rich-item-renderer that contains a video)');
+          console.warn('[YT-Rec-Fix] Pass a card DOM element (e.g. a ytd-rich-item-renderer that contains a video)');
           return null;
         }
         const v = getVideoId(cardEl);
@@ -1093,7 +1101,7 @@
         try {
           return await triggerYouTubeFeedback(cardEl, actionType, v);
         } catch (e) {
-          console.error('manual debug feedback error', e);
+          console.error('[YT-Rec-Fix] manual debug feedback error', e);
           return { ok: false, error: String(e) };
         }
       },
@@ -1101,7 +1109,7 @@
       debugTriggerOnFirstCard: async (actionType = 'watched') => {
         const cards = findCards().filter(c => !isCardHidden(c));
         if (!cards.length) {
-          console.warn('No visible cards found');
+          console.warn('[YT-Rec-Fix] No visible cards found');
           return null;
         }
         return window.__YT_REC_FIX__.debugTriggerFeedback(cards[0], actionType);

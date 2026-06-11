@@ -49,7 +49,7 @@ cd yt-rec-fix
 
 For repeated development:
 - `npm install -g web-ext` (optional but recommended)
-- Then `web-ext run --firefox-desktop` from the project root (auto-reloads on file changes). Requires Node.
+- Then `npm run dev` (or `web-ext run --target=firefox-desktop`) from the project root (auto-reloads on file changes). Requires Node.
 
 Reload the addon in about:debugging after edits.
 
@@ -106,7 +106,9 @@ This is the popup with settings and adjustments you can make for the addon:
 - Content script + MutationObserver + periodic scan for robustness on a heavy SPA.
 - Video ID extraction from standard `a[href*="watch?v="]` links (11-char IDs).
 - Storage: `blockedVideoIds` array + settings object.
-- Menu automation adapted from proven patterns (label + icon SVG matching for "Not interested", "Don't recommend channel"; follow-up `ytd-dismissal-follow-up-renderer` + checkbox selection for "Tell us why"). The "Don't recommend channel" button itself is now gated behind an explicit user setting (default off) per the update request.
+- Menu automation adapted from proven patterns (label + icon SVG matching for "Not interested", "Don't recommend channel"; follow-up reason chooser for "Tell us why"). The "Don't recommend channel" button itself is now gated behind an explicit user setting (default off) per the update request.
+- **Important execution detail (2026)**: Local visual hiding is deliberately deferred until *after* the full feedback automation (Not interested + Tell us why reason panel with "I've already watched the video" / "I don't like the video" + Submit) has run against the live UI that YouTube creates. Hiding the card too early would also hide the replacement panel ("the new card that YT creates") containing the buttons we need to press for the detailed signal. See `screenshots/Tell_us_why.png` + `Tell_us_why_submit.png` (and the code comments in handleBlockAction / triggerYouTubeFeedback).
+- When "Enable debug logging" is on, the automation produces very detailed console output + intercepts the actual `youtubei/v1/feedback` (and related) calls that YouTube's client code makes as a result of the simulated clicks. This gives much stronger evidence that the "watched / not interested / don't like" feedback was transmitted than before. The waitFor polling + broader discovery of the current reason panel helps reliability across YT UI variations.
 - Local hide uses a `data-yt-rec-fix-hidden` attribute + CSS for clean suppression (easy to toggle).
 - No background page needed initially.
 
@@ -119,6 +121,11 @@ See the plan.md (in session) or manually:
 5. Watch a new video fully: check that it gets blocked (visit home — it shouldn't reappear in recs).
 6. Use popup clear and confirm recs can return when list empty.
 7. Check browser console with debug on for logs.
+   With debug enabled you now get:
+   - Step-by-step traces inside triggerYouTubeFeedback (menu found via which selector, every menu item text+SVG match result, "Tell us why", exact checkbox label texts discovered, which reasons were clicked, submit).
+   - Confirmation of real network signals: look for `[YT-Rec-Fix] YT network: POST .../youtubei/v1/feedback...` (and the payload snippet). This is the actual evidence sent to YouTube.
+   - Post-action UI evidence scan (toast / "Undo" / improvement banner if YT renders one).
+   - Console helpers: `window.__YT_REC_FIX__.debugTriggerOnFirstCard('dislike')` or pass your own card element.
 
 ## Limitations & Notes
 - Click simulation for YT feedback is inherently a bit brittle (YouTube frequently updates web components, class names, and the exact menu/dialog structure). The local blocklist is the dependable part of the "fix".
@@ -148,7 +155,7 @@ See the "Install (Development / Temporary)" section above for basic steps.
 - The content script may not auto-inject on YouTube pages until you explicitly grant host permission: click the puzzle piece menu (or the addon icon) → find YT Rec Fix → click the cogwheel/settings → allow "Access your data for www.youtube.com" (or equivalent).
 - After granting, hard reload the YouTube tab. The addon should then work without having to click the addon icon after every page reload.
 - After editing files (especially popup), use the **Reload** button for the temporary addon in `about:debugging` to pick up the changes (popup HTML/CSS/JS changes are not always hot-reloaded automatically).
-- For a smoother dev experience: `npm install -g web-ext` and use `npm run dev` (or `web-ext run --firefox-desktop`).
+- For a smoother dev experience: `npm run dev` (or `web-ext run --target=firefox-desktop`). This uses the local web-ext and supports auto-reload on file changes.
 
 - Main logic lives in `content/yt-rec-fix.js` (will be the largest file).
 - Use the debug toggle in the popup + browser console for logs.

@@ -55,6 +55,8 @@ For repeated development:
 
 Reload the addon in about:debugging after edits.
 
+**Native Windows / PowerShell note**: The default `npm run dev` works directly when running natively on Windows (Firefox is usually auto-detected). Use `npm run dev:win` (and edit the path in package.json if needed) for a pre-configured Windows Firefox location. No WSL path translation required.
+
 ## Install (Latest Unlisted Version)
 
 For normal use, download the latest signed unlisted version from GitHub Releases (signed by Mozilla, not listed in the public store).

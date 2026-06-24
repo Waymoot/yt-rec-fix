@@ -8,43 +8,77 @@
 <body>
   <div class="popup">
     <div class="header">
-      <h1>YT Rec Fix</h1>
+      <div class="header-titles">
+        <h1>YT Rec Fix</h1>
+        <p class="tagline">YouTube Recommendation Fix &amp; Section Hider</p>
+      </div>
       <span id="version" class="version"></span>
     </div>
     <div class="stats">
       <div>Blocked videos: <strong id="blocked-count">0</strong></div>
     </div>
 
-    <div class="toggles">
-      <label>
-        <input type="checkbox" id="hide-blocked" checked>
-        Hide blocked / watched videos in recs
-      </label>
-      <label>
-        <input type="checkbox" id="inject-buttons" checked>
-        Show quick block buttons on recommendations
-      </label>
-      <label>
-        <input type="checkbox" id="show-channel-button">
-        Show "Ch" / "Don't recommend channel" button (off by default — this YT action is irreversible and cannot be easily rolled back)
-      </label>
-      <label>
-        <input type="checkbox" id="auto-block-watch" checked>
-        Auto-block videos when I visit/watch them
-      </label>
-      <label>
-        <input type="checkbox" id="prefer-dislike">
-        Prefer "I don't like the video" reason (stronger)
-      </label>
-      <label>
-        <input type="checkbox" id="debug">
-        Enable debug logging (console) — verbose traces for "Not interested" flow + real YT API calls
-      </label>
-      <label>
-        <input type="checkbox" id="hide-shorts">
-        Hide Shorts sections (subscriptions, home, etc.)
-      </label>
-    </div>
+    <section class="popup-section">
+      <h2 class="section-title">Recommendations</h2>
+      <div class="toggle-grid">
+        <label>
+          <input type="checkbox" id="hide-blocked" checked>
+          Hide blocked / watched videos in recs
+        </label>
+        <label>
+          <input type="checkbox" id="inject-buttons" checked>
+          Show quick block buttons on recommendations
+        </label>
+        <label>
+          <input type="checkbox" id="auto-block-watch" checked>
+          Auto-block videos when I visit/watch them
+        </label>
+        <label>
+          <input type="checkbox" id="prefer-dislike">
+          Prefer "I don't like the video" reason (stronger)
+        </label>
+        <label class="span-full">
+          <input type="checkbox" id="show-channel-button">
+          Show "Ch" / "Don't recommend channel" button (off by default — irreversible on YT)
+        </label>
+      </div>
+    </section>
+
+    <section class="popup-section">
+      <h2 class="section-title">Hide sections</h2>
+      <div class="toggle-grid">
+        <label>
+          <input type="checkbox" id="hide-shorts">
+          Hide Shorts (feed + channel pages)
+        </label>
+        <label>
+          <input type="checkbox" id="hide-explore-topics">
+          Hide "Explore more topics"
+        </label>
+        <label>
+          <input type="checkbox" id="hide-most-relevant">
+          Hide "Most relevant"
+        </label>
+        <label>
+          <input type="checkbox" id="hide-for-you">
+          Hide channel "For You" shelf
+        </label>
+        <label>
+          <input type="checkbox" id="hide-channel-feature">
+          Hide channel Feature
+        </label>
+      </div>
+    </section>
+
+    <section class="popup-section">
+      <h2 class="section-title">Debugging</h2>
+      <div class="toggle-grid single-col">
+        <label>
+          <input type="checkbox" id="debug">
+          Enable debug logging (console) — section scans, feedback traces, YT API calls
+        </label>
+      </div>
+    </section>
 
     <div class="actions">
       <button id="clear-blocked">Clear all blocked videos</button>

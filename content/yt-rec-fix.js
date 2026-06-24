@@ -97,7 +97,11 @@
     preferDislike: false,
     debug: false,
     showChannelButton: false,  // off by default: "Don't recommend channel" is irreversible on YT; user must opt-in via popup
-    hideShorts: false,         // hide Shorts shelves (subscriptions etc.) — separate from rec blocking
+    hideShorts: false,
+    hideExploreMoreTopics: false,
+    hideMostRelevant: false,
+    hideForYou: false,
+    hideChannelFeature: false,
   };
   let lastUrl = location.href;
   let debounceTimer = null;
@@ -146,6 +150,10 @@
     }
     if (data.settings && typeof data.settings === 'object') {
       settings = { ...settings, ...data.settings };
+      if (data.settings.hideChannelPromote !== undefined) {
+        settings.hideChannelFeature = !!data.settings.hideChannelPromote;
+        delete settings.hideChannelPromote;
+      }
     }
     // Apply debug
     // (we read settings.debug in logger)
@@ -222,6 +230,45 @@
 
   // --- Section hiding (Shorts etc.) — active on ALL YT pages, including subscriptions ---
   const SECTION_HIDDEN_ATTR = 'data-yt-rec-fix-section-hidden';
+  const SECTION_DEBUG_CLASS = 'yt-rec-fix-section-debug-hidden';
+  const SECTION_MARKER_CLASS = 'yt-rec-fix-section-hidden-marker';
+
+  function getSectionTitleText(section) {
+    const shelf = section.querySelector('ytd-rich-shelf-renderer');
+    const shelfTitle = shelf?.querySelector('#title, span#title');
+    const shelfText = (shelfTitle?.textContent || '').trim();
+    if (shelfText) return shelfText;
+
+    const reelShelf = section.querySelector('ytd-reel-shelf-renderer');
+    const reelTitle = reelShelf?.querySelector('yt-formatted-string#title, #title');
+    const reelText = (reelTitle?.textContent || '').trim();
+    if (reelText) return reelText;
+
+    const channelShelf = section.querySelector('ytd-shelf-renderer');
+    const channelTitle = channelShelf?.querySelector('#title, span#title');
+    const channelText = (channelTitle?.textContent || '').trim();
+    if (channelText) return channelText;
+
+    const chipsShelf = section.querySelector('ytd-chips-shelf-with-video-shelf-renderer');
+    if (chipsShelf) {
+      const headerTitle = chipsShelf.querySelector(
+        'h2 .ytAttributedStringHost, h2 span[role="text"], h2, .ytShelfHeaderLayoutTitle'
+      );
+      const chipsText = (headerTitle?.textContent || '').trim();
+      if (chipsText) return chipsText;
+    }
+
+    const featured = section.querySelector('ytd-channel-featured-content-renderer');
+    if (featured) {
+      const featureTitle = (
+        featured.querySelector('.ytLockupMetadataViewModelTitle, a[href*="/watch?v="]')?.textContent || ''
+      ).trim();
+      if (featureTitle) return `(feature) ${featureTitle.slice(0, 80)}`;
+      return '(feature)';
+    }
+
+    return null;
+  }
 
   const SECTION_DETECTORS = [
     {
@@ -229,18 +276,30 @@
       label: 'Shorts',
       settingKey: 'hideShorts',
       detect(section) {
-        const shelf = section.querySelector('ytd-rich-shelf-renderer');
-        if (!shelf) return { match: false, reason: 'no ytd-rich-shelf-renderer' };
-
-        // Primary signal from tmp/yt-shorts-section.txt export
-        if (shelf.hasAttribute('is-shorts')) {
-          return { match: true, reason: 'ytd-rich-shelf-renderer[is-shorts]' };
+        const richShelf = section.querySelector('ytd-rich-shelf-renderer');
+        if (richShelf) {
+          // Feed/home/subscriptions — tmp/yt-shorts-section.txt
+          if (richShelf.hasAttribute('is-shorts')) {
+            return { match: true, reason: 'ytd-rich-shelf-renderer[is-shorts]' };
+          }
+          const richTitle = (richShelf.querySelector('#title, span#title')?.textContent || '').trim();
+          if (richTitle === 'Shorts') {
+            return { match: true, reason: 'rich shelf #title === Shorts' };
+          }
         }
 
-        const title = shelf.querySelector('#title, span#title');
-        const titleText = (title?.textContent || '').trim();
-        if (titleText === 'Shorts') {
-          return { match: true, reason: 'shelf #title === Shorts' };
+        const reelShelf = section.querySelector('ytd-reel-shelf-renderer');
+        if (reelShelf) {
+          // Channel page Shorts — tmp/channel-shorts-section.txt
+          const reelTitle = (
+            reelShelf.querySelector('yt-formatted-string#title, #title')?.textContent || ''
+          ).trim();
+          if (reelTitle === 'Shorts') {
+            if (reelShelf.querySelector('yt-horizontal-list-renderer[override-arrow-position-for-shorts]')) {
+              return { match: true, reason: 'channel reel shelf + override-arrow-position-for-shorts' };
+            }
+            return { match: true, reason: 'ytd-reel-shelf-renderer title Shorts' };
+          }
         }
 
         if (
@@ -253,74 +312,222 @@
         return { match: false, reason: 'no shorts signals' };
       },
     },
+    {
+      id: 'explore-more-topics',
+      label: 'Explore more topics',
+      settingKey: 'hideExploreMoreTopics',
+      detect(section) {
+        const chipsShelf = section.querySelector('ytd-chips-shelf-with-video-shelf-renderer');
+        if (chipsShelf) {
+          const titleText = getSectionTitleText(section);
+          if (titleText === 'Explore more topics') {
+            return { match: true, reason: 'chips shelf + title Explore more topics' };
+          }
+          return { match: true, reason: 'ytd-chips-shelf-with-video-shelf-renderer' };
+        }
+
+        if (getSectionTitleText(section) === 'Explore more topics') {
+          return { match: true, reason: 'title === Explore more topics' };
+        }
+
+        return { match: false, reason: 'no explore topics signals' };
+      },
+    },
+    {
+      id: 'most-relevant',
+      label: 'Most relevant',
+      settingKey: 'hideMostRelevant',
+      detect(section) {
+        const shelf = section.querySelector('ytd-rich-shelf-renderer');
+        if (!shelf || shelf.hasAttribute('is-shorts')) {
+          return { match: false, reason: 'no shelf or is shorts' };
+        }
+
+        if (section.querySelector('ytd-chips-shelf-with-video-shelf-renderer')) {
+          return { match: false, reason: 'chips shelf section' };
+        }
+
+        const titleText = getSectionTitleText(section);
+        if (titleText === 'Most relevant') {
+          return { match: true, reason: 'shelf #title === Most relevant' };
+        }
+
+        return { match: false, reason: 'no most relevant signals' };
+      },
+    },
+    {
+      id: 'for-you',
+      label: 'For You',
+      settingKey: 'hideForYou',
+      detect(section) {
+        const shelf = section.querySelector('ytd-shelf-renderer');
+        if (!shelf) return { match: false, reason: 'no ytd-shelf-renderer' };
+
+        const titleText = (shelf.querySelector('#title, span#title')?.textContent || '').trim();
+        if (titleText !== 'For You') return { match: false, reason: 'title not For You' };
+
+        // tmp/yt-for-you-section.txt — channel home shelf, not latest uploads
+        if (section.matches('ytd-item-section-renderer[page-subtype="channels"]')) {
+          return { match: true, reason: 'channel item-section + shelf title For You' };
+        }
+
+        if (shelf.querySelector('yt-horizontal-list-renderer[is-channel]')) {
+          return { match: true, reason: 'channel horizontal shelf + For You' };
+        }
+
+        return { match: true, reason: 'ytd-shelf-renderer #title === For You' };
+      },
+    },
+    {
+      id: 'channel-feature',
+      label: 'Feature',
+      settingKey: 'hideChannelFeature',
+      detect(section) {
+        const featured = section.querySelector('ytd-channel-featured-content-renderer');
+        if (!featured) return { match: false, reason: 'no ytd-channel-featured-content-renderer' };
+
+        // tmp/channel-promote-section.txt — YT "Feature" shelf on channel home
+        if (
+          section.querySelector('ytd-shelf-renderer, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer')
+        ) {
+          return { match: false, reason: 'section has other shelf content' };
+        }
+
+        const hasLockup =
+          !!featured.querySelector(
+            'yt-lockup-view-model.ytLockupViewModelHorizontal, yt-lockup-view-model'
+          ) || !!featured.querySelector('a[href*="/watch?v="]');
+        if (!hasLockup) return { match: false, reason: 'no featured video lockup' };
+
+        return { match: true, reason: 'ytd-channel-featured-content-renderer' };
+      },
+    },
   ];
 
   function findSectionContainers() {
-    return Array.from(document.querySelectorAll('ytd-rich-section-renderer'));
+    const containers = new Set();
+    document.querySelectorAll('ytd-rich-section-renderer, ytd-item-section-renderer').forEach((el) => {
+      containers.add(el);
+    });
+    return Array.from(containers);
   }
 
   function describeSection(section) {
-    const shelf = section.querySelector('ytd-rich-shelf-renderer');
-    const title = shelf?.querySelector('#title, span#title');
+    const richShelf = section.querySelector('ytd-rich-shelf-renderer');
     return {
       tag: section.tagName.toLowerCase(),
       hidden: section.hasAttribute(SECTION_HIDDEN_ATTR),
       hiddenAs: section.getAttribute(SECTION_HIDDEN_ATTR) || null,
-      shelfIsShorts: shelf ? shelf.hasAttribute('is-shorts') : null,
-      shelfTitle: (title?.textContent || '').trim() || null,
+      shelfIsShorts: richShelf ? richShelf.hasAttribute('is-shorts') : null,
+      shelfTitle: getSectionTitleText(section),
+      hasChipsShelf: !!section.querySelector('ytd-chips-shelf-with-video-shelf-renderer'),
+      hasChannelShelf: !!section.querySelector('ytd-shelf-renderer'),
+      hasReelShelf: !!section.querySelector('ytd-reel-shelf-renderer'),
+      hasChannelFeature: !!section.querySelector('ytd-channel-featured-content-renderer'),
       hasShortsLockup: !!section.querySelector(
         'ytm-shorts-lockup-view-model-v2, ytm-shorts-lockup-view-model'
       ),
     };
   }
 
-  function matchSectionById(sectionId) {
-    const det = SECTION_DETECTORS.find((d) => d.id === sectionId);
-    if (!det) {
-      return { error: 'unknown section id', ids: SECTION_DETECTORS.map((d) => d.id) };
-    }
-    return findSectionContainers()
-      .map((section) => ({
-        section,
-        result: det.detect(section),
-        ...describeSection(section),
-      }))
-      .filter((row) => row.result.match);
+  function sectionHideSettingsSummary() {
+    return SECTION_DETECTORS.map((d) => `${d.id}:${settings[d.settingKey] ? 'on' : 'off'}`).join(' ');
   }
 
-  function probeSections(opts = {}) {
-    const rows = findSectionContainers().map((section, index) => {
+  function sectionSettingsChanged(prev, next) {
+    return SECTION_DETECTORS.some((d) => prev[d.settingKey] !== next[d.settingKey]);
+  }
+
+  let lastSectionScanFingerprint = '';
+
+  function buildSectionScanRows() {
+    return findSectionContainers().map((section, index) => {
       const desc = describeSection(section);
       const matches = SECTION_DETECTORS.map((det) => {
         const result = det.detect(section);
-        return { id: det.id, label: det.label, ...result };
-      }).filter((m) => m.match);
-      return { index, ...desc, matches };
+        return result.match ? `${det.id} (${result.reason})` : null;
+      }).filter(Boolean);
+      return {
+        index,
+        container: desc.tag,
+        shelfTitle: desc.shelfTitle,
+        isShorts: desc.shelfIsShorts,
+        matches: matches.join('; ') || '-',
+        hidden: desc.hiddenAs || desc.hidden || '-',
+      };
     });
-
-    console.log('[YT-Rec-Fix] probeSections — found', rows.length, 'ytd-rich-section-renderer');
-    console.table(
-      rows.map((r) => ({
-        index: r.index,
-        shelfTitle: r.shelfTitle,
-        isShorts: r.shelfIsShorts,
-        matches: r.matches.map((m) => `${m.id} (${m.reason})`).join('; ') || '-',
-        hidden: r.hiddenAs || r.hidden,
-      }))
-    );
-
-    if (opts.apply) processSections({ force: true });
-    return rows;
   }
 
-  function hideSectionEl(section, sectionId) {
-    if (!section || section.getAttribute(SECTION_HIDDEN_ATTR) === sectionId) return;
-    section.setAttribute(SECTION_HIDDEN_ATTR, sectionId);
-    log('hid section', sectionId);
+  function logSectionScan(trigger) {
+    if (!settings.debug && !DEBUG) return;
+
+    const forceLog = trigger === 'init' || trigger === 'navigate' || trigger === 'toggle';
+    const rows = buildSectionScanRows();
+    const fingerprint = JSON.stringify(rows);
+    if (!forceLog && fingerprint === lastSectionScanFingerprint) return;
+    lastSectionScanFingerprint = fingerprint;
+
+    console.log(
+      '[YT-Rec-Fix] section scan',
+      `(${trigger}) —`,
+      rows.length,
+      'section containers',
+      `(hide: ${sectionHideSettingsSummary()})`
+    );
+    if (rows.length) console.table(rows);
+  }
+
+  function sectionLabelForId(sectionId) {
+    const det = SECTION_DETECTORS.find((d) => d.id === sectionId);
+    return det?.label || sectionId;
+  }
+
+  function ensureSectionDebugMarker(section, sectionId) {
+    let marker = section.querySelector(`.${SECTION_MARKER_CLASS}`);
+    if (!marker) {
+      marker = document.createElement('div');
+      marker.className = SECTION_MARKER_CLASS;
+      section.prepend(marker);
+    }
+    marker.textContent = `hidden section (${sectionLabelForId(sectionId)})`;
+  }
+
+  function clearSectionDebugMarker(section) {
+    section.querySelectorAll(`.${SECTION_MARKER_CLASS}`).forEach((el) => el.remove());
+    section.classList.remove(SECTION_DEBUG_CLASS);
+  }
+
+  function applySectionHiddenPresentation(section, sectionId) {
+    if (settings.debug) {
+      section.classList.add(SECTION_DEBUG_CLASS);
+      ensureSectionDebugMarker(section, sectionId);
+    } else {
+      clearSectionDebugMarker(section);
+    }
+  }
+
+  function syncAllSectionDebugMarkers() {
+    document.querySelectorAll(`[${SECTION_HIDDEN_ATTR}]`).forEach((section) => {
+      applySectionHiddenPresentation(section, section.getAttribute(SECTION_HIDDEN_ATTR));
+    });
+  }
+
+  function hideSectionEl(section, sectionId, reason) {
+    if (!section) return;
+    const alreadyHidden = section.getAttribute(SECTION_HIDDEN_ATTR) === sectionId;
+    if (!alreadyHidden) {
+      section.setAttribute(SECTION_HIDDEN_ATTR, sectionId);
+      log('hid section', sectionId, reason || '');
+    }
+    applySectionHiddenPresentation(section, sectionId);
   }
 
   function unhideSectionEl(section) {
-    if (section) section.removeAttribute(SECTION_HIDDEN_ATTR);
+    if (!section) return;
+    const was = section.getAttribute(SECTION_HIDDEN_ATTR);
+    section.removeAttribute(SECTION_HIDDEN_ATTR);
+    clearSectionDebugMarker(section);
+    if (was) log('unhid section', was);
   }
 
   function unhideAllSections() {
@@ -336,8 +543,8 @@
       if (!enabled) continue;
 
       for (const section of findSectionContainers()) {
-        const { match } = det.detect(section);
-        if (match) hideSectionEl(section, det.id);
+        const result = det.detect(section);
+        if (result.match) hideSectionEl(section, det.id, result.reason);
       }
     }
 
@@ -348,6 +555,8 @@
         if (det && !settings[det.settingKey]) unhideSectionEl(section);
       });
     }
+
+    logSectionScan(opts.scanTrigger || 'process');
   }
 
   // --- Core scan + hide + button injection ---
@@ -1093,7 +1302,7 @@
       // Re-process everything on new "page"
       // Small delay for YT to render new content
       setTimeout(() => {
-        processSections();
+        processSections({ scanTrigger: 'navigate' });
         processRecommendations();
         if (location.pathname === '/watch') {
           handleWatchPage();
@@ -1137,7 +1346,7 @@
     // YT-specific navigation event (very helpful)
     window.addEventListener('yt-navigate-finish', () => {
       setTimeout(() => {
-        processSections();
+        processSections({ scanTrigger: 'navigate' });
         processRecommendations();
         if (location.pathname === '/watch') handleWatchPage();
       }, 400);
@@ -1161,14 +1370,20 @@
           const oldHide = settings.hideBlocked;
           const oldInject = settings.injectButtons;
           const oldShowChannel = settings.showChannelButton;
-          const oldHideShorts = settings.hideShorts;
+          const prevSettings = { ...settings };
+          const oldDebug = settings.debug;
           settings = { ...settings, ...newS };
+          const sectionTogglesChanged = sectionSettingsChanged(prevSettings, settings);
 
           if (newS.debug !== undefined) {
-            // debug just affects logging + enables detailed interceptor output
+            // debug affects logging, interceptors, and section-hide markers on page
             if (newS.debug) {
               setupApiInterceptors();
               log('debug enabled - expect verbose feedback traces + YT network logs on next button use');
+            }
+            if (oldDebug !== settings.debug) {
+              syncAllSectionDebugMarkers();
+              if (settings.debug) processSections({ scanTrigger: 'toggle' });
             }
           }
 
@@ -1180,10 +1395,10 @@
             oldHide !== settings.hideBlocked ||
             oldInject !== settings.injectButtons ||
             channelPrefChanged ||
-            oldHideShorts !== settings.hideShorts
+            sectionTogglesChanged
           ) {
-            if (oldHideShorts !== settings.hideShorts && !settings.hideShorts) {
-              unhideAllSections();
+            if (sectionTogglesChanged) {
+              processSections({ scanTrigger: 'toggle' });
             }
             if (channelPrefChanged) {
               // Remove all our button wrappers so ensureButtons will re-evaluate the channel button
@@ -1213,11 +1428,11 @@
       settings
     });
     if (settings.debug) {
-      log('Debug mode active on startup. Open browser console (F12) and use buttons to see detailed step traces + intercepted YT feedback network calls.');
+      log('Debug mode active on startup. Open browser console (F12) for section scans + feedback traces.');
     }
 
     // First sweep
-    processSections();
+    processSections({ scanTrigger: 'init' });
     processRecommendations();
 
     // If we landed on a watch page, track it
@@ -1234,15 +1449,13 @@
       processRecommendations();
     }, 2200);
 
-    // Expose a tiny API for debugging / popup advanced use
+    // Expose a tiny API for feedback debugging (rec blocking — not section hiding)
     window.__YT_REC_FIX__ = {
       getBlocked: () => Array.from(blockedVideoIds),
       block: async (id) => { blockedVideoIds.add(id); await persistBlocked(); debouncedProcess(); },
       clear: async () => { blockedVideoIds.clear(); blockedChannels.clear(); await persistBlocked(); document.querySelectorAll('[data-yt-rec-fix-hidden]').forEach(unhideCard); },
       reprocess: processRecommendations,
       settings,
-      // --- Extra debug helpers (use in console when debug logging enabled) ---
-      // Example:  const c = document.querySelector('ytd-rich-item-renderer'); __YT_REC_FIX__.debugTriggerFeedback(c, 'watched')
       debugTriggerFeedback: async (cardEl, actionType = 'watched') => {
         if (!cardEl) {
           console.warn('[YT-Rec-Fix] Pass a card DOM element (e.g. a ytd-rich-item-renderer that contains a video)');
@@ -1257,9 +1470,8 @@
           return { ok: false, error: String(e) };
         }
       },
-      // Find first visible rec card and run feedback on it (handy quick test)
       debugTriggerOnFirstCard: async (actionType = 'watched') => {
-        const cards = findCards().filter(c => !isCardHidden(c));
+        const cards = findCards().filter((c) => !isCardHidden(c));
         if (!cards.length) {
           console.warn('[YT-Rec-Fix] No visible cards found');
           return null;
@@ -1268,12 +1480,6 @@
       },
       describeEl,
       setupApiInterceptors,
-      // --- Section hiding debug API (see tmp/hide-sections-plan.md) ---
-      probeSections,
-      matchSection: matchSectionById,
-      hideSections: processSections,
-      unhideAllSections,
-      sectionDetectorIds: () => SECTION_DETECTORS.map((d) => d.id),
     };
   }
 

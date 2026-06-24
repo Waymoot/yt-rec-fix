@@ -115,6 +115,20 @@ Once granted it usually sticks until the next manual upgrade.
 
 Unlisted Mozilla-signed builds **do not auto-update** and **do not appear in AMO search** — check Releases for new versions.
 
+### Troubleshooting
+
+#### "Always allow on www.youtube.com" prompt appears after upgrade
+This is normal with Firefox + Manifest V3 when you manually install a new `.xpi`.
+
+**Quick fix:**
+1. Go to any YouTube page.
+2. Right-click the extension icon (or puzzle piece) in the toolbar.
+3. Select **Always Allow on www.youtube.com**.
+
+Alternative: Puzzle icon → YT Rec Fix → gear icon → grant "Access your data for www.youtube.com".
+
+We are looking into using optional permissions for a smoother experience in a future update.
+
 ### Temporary load (development)
 
 ```bash

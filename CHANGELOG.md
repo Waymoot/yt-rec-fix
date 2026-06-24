@@ -29,6 +29,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Settings key `hideChannelPromote` renamed to `hideChannelFeature` (auto-migrated on load).
 
+### Known issues (after release)
+
+- After manual `.xpi` upgrades, Firefox may re-prompt for host permission. Right-click the icon → **Always Allow on www.youtube.com** (see README Install section for details). We are investigating optional_host_permissions to improve this.
+
 ## [0.1.6] — earlier
 
 ### Recommendation blocking (core)

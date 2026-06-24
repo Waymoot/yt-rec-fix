@@ -22,8 +22,8 @@
       "16": "icons/icon-16.png"
     }
   },
-  "permissions": ["storage", "activeTab"],
-  "host_permissions": ["https://www.youtube.com/*"],
+  "permissions": ["storage", "activeTab", "tabs"],
+  "optional_host_permissions": ["https://www.youtube.com/*"],
   "browser_specific_settings": {
     "gecko": {
       "id": "yt-rec-fix@danney.ytaddon",

@@ -126,3 +126,38 @@ h1 {
   color: #c00;
   text-decoration: none;
 }
+
+.permission-warning {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.permission-warning p {
+  margin: 4px 0;
+}
+
+.permission-warning button {
+  background: #c00;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.permission-warning button:hover {
+  background: #a00;
+}
+
+.permission-warning .small {
+  font-size: 10px;
+  color: #666;
+  margin-top: 4px;
+}

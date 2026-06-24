@@ -20,7 +20,7 @@ package-lock.json
 web-ext-artifacts/
 
 # Local screenshots / debugging captures (not part of the repo)
-screenshots/
+tmp/
 
 # Personal development notes and testing instructions (local only)
 dev-testing.md

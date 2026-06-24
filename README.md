@@ -1,181 +1,234 @@
-# YT Rec Fix (Watched Blocker)
+# YT Rec Fix
+
+**YouTube Recommendation Fix** (short name: **YT Rec Fix**)
+
+> **v0.1** — *Fast “I watched this / don’t recommend” clicking* — one-click feedback + a persistent local blocklist so re-recommended videos stay hidden.  
+> **v0.2** — *…and Section Hider* — optionally hide whole YouTube shelves (Shorts, channel For You / Feature, topic rows, and more) so feeds and channel pages stay focused on what you actually want.
+
+Firefox (Manifest V3). All client-side: blocklist and settings live in `browser.storage.local`. YouTube feedback network calls only happen when **you** click Watched / Dislike / Ch — the same actions as the native menus.
+
+**Also useful if you searched for:** hide sections on YouTube · hide Shorts on YouTube · hide For You on channel · cleaner channel page · block re-recommended videos
 
 **Repository:** https://github.com/Waymoot/yt-rec-fix
 
-Firefox addon that makes it trivial to tell YouTube "I watched this and don't want it recommended again", plus **reliable local client-side hiding** of watched/re-blocked videos so they stop appearing in recommendations immediately.
+See [`CHANGELOG.md`](CHANGELOG.md) for release history. Install via [GitHub Releases](https://github.com/Waymoot/yt-rec-fix/releases/latest) (below).
 
-Addresses the pain: manually clicking through 5 steps (⋯ → Not interested → Tell us why → checkboxes → Submit) is tedious and often ineffective. This addon reduces it to 1 click and guarantees the video won't show up again for you via local suppression.
+---
 
-### This is what you have to click today
+## The problem
+
+YouTube’s manual flow to stop a video from coming back is tedious: ⋯ → Not interested → Tell us why → checkboxes → Submit. It is easy to skip, and the algorithm often ignores “watched” anyway.
+
+Separately, YouTube keeps injecting shelves you did not ask for — Shorts carousels, “For You” picks on channel pages, a lone “Feature” promote, topic chips, and “Most relevant” blocks — which push the content you actually want (e.g. a channel’s latest uploads) further down the page.
+
+## What this addon does
+
+1. **Recommendation fix (original core)** — Small buttons on rec cards; one click runs the full feedback flow and adds the video to a **persistent local blocklist** so it disappears from your views immediately.
+2. **Hide sections (new in v0.2.0)** — Independent toggles to hide entire page sections. Works on feeds *and* channel home tabs. Does not depend on the rec-blocking toggles.
+
+Everything runs in the page via a content script (`MutationObserver` + debounced rescans). No background servers.
+
+### Before: the manual YouTube flow
 
 <div align="center">
-  <img src="images/addon_01.png" width="70%" alt="This is what you have to click today" />
+  <img src="images/addon_01.png" width="70%" alt="YouTube's multi-step Not interested flow" />
 </div>
 
-### Now you can do it in one click!
+### After: one click on the card
 
 <div align="center">
-  <img src="images/addon_02.png" width="45%" alt="One click: Watched button" />
-  <img src="images/addon_04.png" width="45%" alt="One click: Dislike + Channel button" />
+  <img src="images/addon_02.png" width="45%" alt="Watched button on a recommendation card" />
+  <img src="images/addon_04.png" width="45%" alt="Dislike and optional channel button" />
 </div>
 
-## Features (v0.1.6)
-- **Reduced flash of intermediate UI**: The temporary "Video removed" + "Tell us why" state that appears during automation is now suppressed almost immediately after we submit the reasons (new in this version). The automation itself remains fully reliable.
-- Adds small, quick buttons directly on recommended video cards (homepage, sidebar related, etc.):
-  - "Watched" — triggers full "Not interested" + "I've already watched the video" (+ optionally "I don't like").
-  - "Dislike" — stronger negative signal.
-  - "Ch" / "Don't recommend channel" — **opt-in only via popup checkbox (default: OFF)**. This is a very hard/irreversible action on YouTube that cannot be easily rolled back, so the button is not shown by default to prevent misclicks. Local channel hiding (for any channels you have previously acted on) continues to work under the main "Hide blocked / watched videos" toggle.
-- **Local persistent blocklist**: once blocked or auto-tracked as watched, matching recommendations are hidden instantly using DOM scanning. Survives reloads, navigation, browser restarts.
-- **Reduced flash of intermediate UI** (new in 0.1.6): The temporary "Video removed" + "Tell us why" panel that YouTube shows during the flow is now hidden almost immediately after we successfully submit the chosen reasons. This makes the experience cleaner for users while the automation (clicks + network signals) remains fully reliable.
-- Auto-tracks videos you open on `/watch` pages (configurable).
-- Popup with:
-  - Blocked count.
-  - Toggles for hiding, buttons, auto-track, **"Show 'Ch' / Don't recommend channel" (off by default — irreversible YT action)**, reason preference, debug.
-  - One-click clear.
-- Works on YouTube's various card renderers (rich grid, compact sidebar, lockup view models, etc.).
-- All client-side, no data sent anywhere except the normal YouTube feedback actions you would have triggered yourself.
+### Popup (v0.2.0) — three grouped sections
 
-## Install (Development / Temporary)
-Clone the repo (or download a zip of the folder):
+<div align="center">
+  <img src="images/addon_05_popup.png" width="88%" alt="YT Rec Fix popup: Recommendations, Hide sections, and Debugging" />
+</div>
+
+### Channel page with sections hidden (cleaner “latest videos” view)
+
+<div align="center">
+  <img src="images/addon_06_channel_clean.png" width="88%" alt="Channel page after hiding Feature, For You, and Shorts shelves" />
+</div>
+
+---
+
+## Features
+
+### Recommendations (v0.1+)
+
+- **Watched** — “Not interested” + “I've already watched the video” (and related reasons).
+- **Dislike** — Stronger negative signal (“I don't like the video”).
+- **Ch / Don't recommend channel** — **Off by default** (irreversible on YouTube). Enable explicitly in the popup if you want the button on cards.
+- **Local blocklist** — Matching cards are hidden via `data-yt-rec-fix-hidden` + CSS; survives reloads and navigation.
+- **Auto-block on `/watch`** — Optionally add the current video when you visit it.
+- **Reduced UI flash** — Intermediate “Tell us why” panels are handled so automation stays reliable but feels cleaner.
+- **Debug mode** — Verbose console traces and optional section-scan tables when tuning selectors.
+
+### Hide sections (v0.2.0)
+
+Each target is detected from YouTube’s DOM (shelf titles, component tags, and stable attributes). Toggle only what you want:
+
+| Toggle | What it hides | Typical surfaces |
+|--------|----------------|------------------|
+| **Shorts** | Shorts shelves | Subscriptions, Home, **channel pages** (`ytd-rich-shelf-renderer[is-shorts]` and channel `ytd-reel-shelf-renderer`) |
+| **Explore more topics** | Topic chip + video shelf | Home / feed grids |
+| **Most relevant** | “Most relevant” shelf | Feed-style pages |
+| **Channel For You** | Horizontal “For You” shelf on a channel | Channel home (`ytd-shelf-renderer`) |
+| **Channel Feature** | Single promoted “Feature” card | Channel home (`ytd-channel-featured-content-renderer`) |
+
+Section hiding is **separate** from rec blocking: it still runs on pages like `/feed/subscriptions` even when you only care about layout cleanup.
+
+With **debug** enabled, hidden sections can show a thin red marker (`hidden section (…)`) so you can confirm a detector matched during development.
+
+---
+
+## Privacy
+
+- Blocklist, channel keys, and settings: **`browser.storage.local` only**.
+- No analytics, no external servers, no accounts.
+- Network activity is limited to normal YouTube requests triggered by automated UI actions **when you click Watched / Dislike / Ch** — same as using YouTube’s own menus.
+- Firefox: `data_collection_permissions: { "required": ["none"] }`.
+
+---
+
+## Install
+
+### Latest signed build (normal use)
+
+1. Open [GitHub Releases](https://github.com/Waymoot/yt-rec-fix/releases/latest).
+2. Download the `.xpi` for the current version.
+3. Firefox → `about:addons` → gear menu → **Install Add-on From File…**
+
+Unlisted Mozilla-signed builds **do not auto-update** and **do not appear in AMO search** — check Releases for new versions.
+
+### Temporary load (development)
 
 ```bash
 git clone https://github.com/Waymoot/yt-rec-fix.git
 cd yt-rec-fix
 ```
 
-1. In Firefox, go to `about:debugging#/runtime/this-firefox`.
-2. Click "Load Temporary Add-on...".
-3. Select the `manifest.json` file inside this folder.
-4. (First time) You may need to grant "Access your data for www.youtube.com" / host permission via the puzzle piece menu or Add-ons Manager for the extension.
-5. Open https://www.youtube.com and test.
+1. Firefox → `about:debugging#/runtime/this-firefox`
+2. **Load Temporary Add-on…** → select `manifest.json` in the project root
+3. Grant **Access your data for www.youtube.com** if prompted (puzzle icon → extension settings)
+4. Open https://www.youtube.com
 
-For repeated development:
-- `npm install -g web-ext` (optional but recommended)
-- Then `npm run dev` (or `web-ext run --target=firefox-desktop`) from the project root (auto-reloads on file changes). Requires Node.
+**Tip:** Use your normal Firefox profile via `about:debugging` (not a throwaway `web-ext` profile) so you stay logged in.
 
-Reload the addon in about:debugging after edits.
+Reload the temporary addon after code changes. Hard-reload YouTube (`Ctrl+Shift+R`) if a toggle does not apply immediately.
 
-**Native Windows / PowerShell note**: The default `npm run dev` works directly when running natively on Windows (Firefox is usually auto-detected). Use `npm run dev:win` (and edit the path in package.json if needed) for a pre-configured Windows Firefox location. No WSL path translation required.
-## Install (Latest Unlisted Version)
+### Optional: `web-ext` dev loop
 
-For normal use, download the latest signed unlisted version from GitHub Releases (signed by Mozilla, not listed in the public store).
-
-1. Go to the [latest release](https://github.com/Waymoot/yt-rec-fix/releases/latest).
-2. Download the `.xpi` file.
-3. In Firefox, go to `about:addons`.
-4. Click the gear icon (top right) → "Install Add-on From File...".
-5. Select the downloaded `.xpi` file.
-
-**Notes:**
-- This version is **unlisted** — it will not appear in AMO search and will **not auto-update**. Check the releases page for new versions.
-- The addon is signed by Mozilla, so it works on regular Firefox releases.
-- For development or testing the latest code, use the temporary load method above.
-
-## Contributing
-Issues and pull requests welcome. This project is set up so Grok (in this environment) can drive changes, reviews (`/review`), PR babysitting, and stacked work using the authenticated `gh` CLI + git after the initial setup.
-
-See the session plan for the GitHub access method (gh CLI is primary; GitHub MCP server is also configured for tool calls).
-
-
-## Usage
-- Browse YouTube normally.
-- On recommendation cards you don't want: click the small button(s) that appear (top-right of the card thumbnail area or details).
-- Watched videos you visit will be added to the blocklist (if toggle enabled) so future recs hide them.
-- Use the toolbar icon popup for stats, settings, and clearing the list.
-- After using the buttons, the video should quickly disappear from the current view and be suppressed going forward (local guarantee + YT signal attempt).
-
-Tips for best results:
-- Use the "Dislike" variant for videos you actively disliked.
-- The addon still lets YouTube's own watched badges and progress work; we layer on top.
-- If YT changes their UI, buttons or automation may stop working temporarily — local hiding continues to function. Update selectors as needed (see content script).
-
-The toolbar icon opens a popup with stats and settings:
-
-<div align="center">
-  <img src="images/addon_03.png" width="52%" alt="Popup settings and toggles for the addon" />
-</div>
-
-This is the popup with settings and adjustments you can make for the addon:
-- **Blocked videos** count (live updating).
-- **Hide blocked / watched videos in recs** — master toggle for local hiding.
-- **Show quick block buttons on recommendations** — injects the Watched / Dislike / (Ch) buttons on rec cards.
-- **Show "Ch" / "Don't recommend channel" button** — off by default (irreversible YT action).
-- **Auto-block videos when I visit/watch them**.
-- **Prefer "I don't like the video" reason** (stronger negative signal).
-- **Enable debug logging (console)**.
-- Buttons to clear the blocklist or refresh the current YouTube tab.
-
-## How it works (technical)
-- Content script + MutationObserver + periodic scan for robustness on a heavy SPA.
-- Video ID extraction from standard `a[href*="watch?v="]` links (11-char IDs).
-- Storage: `blockedVideoIds` array + settings object.
-- Menu automation adapted from proven patterns (label + icon SVG matching for "Not interested", "Don't recommend channel"; follow-up reason chooser for "Tell us why"). The "Don't recommend channel" button itself is now gated behind an explicit user setting (default off) per the update request.
-- **Important execution detail (2026)**: Local visual hiding is deliberately deferred until *after* the full feedback automation (Not interested + Tell us why reason panel with "I've already watched the video" / "I don't like the video" + Submit) has run against the live UI that YouTube creates. Hiding the card too early would also hide the replacement panel ("the new card that YT creates") containing the buttons we need to press for the detailed signal. See `screenshots/Tell_us_why.png` + `Tell_us_why_submit.png` (and the code comments in handleBlockAction / triggerYouTubeFeedback).
-- As a UX improvement, the intermediate "Video removed" / Tell us why panel that YouTube shows during the flow is now hidden immediately after our automated submit (right after the clicks succeed). This greatly reduces the visible flash of that temporary state while still allowing the full reason selection to complete reliably.
-- When "Enable debug logging" is on, the automation produces very detailed console output + intercepts the actual `youtubei/v1/feedback` (and related) calls that YouTube's client code makes as a result of the simulated clicks. This gives much stronger evidence that the "watched / not interested / don't like" feedback was transmitted than before. The waitFor polling + broader discovery of the current reason panel helps reliability across YT UI variations.
-- Local hide uses a `data-yt-rec-fix-hidden` attribute + CSS for clean suppression (easy to toggle).
-- No background page needed initially.
-
-## Verification / Testing the Fix
-See the plan.md (in session) or manually:
-1. Load addon.
-2. Go to home page, find 2-3 rec videos you recognize as recently watched or uninteresting.
-3. Use the addon buttons on them.
-4. Hard refresh or navigate away and back: they should be gone.
-5. Watch a new video fully: check that it gets blocked (visit home — it shouldn't reappear in recs).
-6. Use popup clear and confirm recs can return when list empty.
-7. Check browser console with debug on for logs.
-   With debug enabled you now get:
-   - Step-by-step traces inside triggerYouTubeFeedback (menu found via which selector, every menu item text+SVG match result, "Tell us why", exact checkbox label texts discovered, which reasons were clicked, submit).
-   - Confirmation of real network signals: look for `[YT-Rec-Fix] YT network: POST .../youtubei/v1/feedback...` (and the payload snippet). This is the actual evidence sent to YouTube.
-   - Post-action UI evidence scan (toast / "Undo" / improvement banner if YT renders one).
-   - Console helpers: `window.__YT_REC_FIX__.debugTriggerOnFirstCard('dislike')` or pass your own card element.
-
-## Limitations & Notes
-- Click simulation for YT feedback is inherently a bit brittle (YouTube frequently updates web components, class names, and the exact menu/dialog structure). The local blocklist is the dependable part of the "fix".
-- Current icons are simple solid red squares (generated at scaffold time). Replace `icons/*.png` with proper artwork before any store submission.
-- Only targets desktop www.youtube.com primarily (add mobile if needed).
-- Does not remove videos from playlists, subscriptions, search (unless they match block criteria in results), or "Watch again" rows you might want.
-- "Don't recommend channel" (and per-video signals) are sent via the UI the same way a human would; effectiveness depends on YouTube. Because this channel action is irreversible on YT, the button is hidden unless you enable the dedicated popup checkbox ("Show 'Ch' / ..."). Local hiding of channels is still available and independent of whether the button is shown.
-- For production AMO listing: add better icons, screenshots, privacy policy, more testing, perhaps a full options page for blocklist management.
-
-## Roadmap / Ideas
-- Blocklist viewer + per-item unblock + titles.
-- Keyword / title pattern blocking.
-- Better progress detection for "ended" auto-block.
-- Options page.
-- Export/import block list (JSON).
-- Support more surfaces (endscreen, shorts if desired).
-
-## Development
-
-### Loading the Temporary Add-on (for development)
-
-See the "Install (Development / Temporary)" section above for basic steps.
-
-**Important notes and common pitfalls** (from real testing):
-- Make sure you completely remove any previously installed `.xpi` version of the addon first (same extension ID). Having both the signed `.xpi` and a temporary load active at the same time causes conflicts.
-- You will often see a green dot on the extension icon and messages like "Behörigheter behövs" / "Kör endast för detta besök" (Permissions needed / Only run for this visit).
-- The content script may not auto-inject on YouTube pages until you explicitly grant host permission: click the puzzle piece menu (or the addon icon) → find YT Rec Fix → click the cogwheel/settings → allow "Access your data for www.youtube.com" (or equivalent).
-- After granting, hard reload the YouTube tab. The addon should then work without having to click the addon icon after every page reload.
-- After editing files (especially popup), use the **Reload** button for the temporary addon in `about:debugging` to pick up the changes (popup HTML/CSS/JS changes are not always hot-reloaded automatically).
-- For a smoother dev experience: `npm run dev` (or `web-ext run --target=firefox-desktop`). This uses the local web-ext and supports auto-reload on file changes.
-
-- Main logic lives in `content/yt-rec-fix.js` (will be the largest file).
-- Use the debug toggle in the popup + browser console for logs.
-- To inspect current YT menus: right-click a rec → Inspect, trigger the real 3-dot menu, look at the rendered `ytd-menu-popup-renderer`, `ytd-dismissal-follow-up-renderer`, checkboxes, etc. Update matching code accordingly.
-- Keep selectors defensive (arrays of fallbacks + text/SVG matching).
-
-## Credits / Inspiration
-- Patterns and robustness tricks drawn from open work:
-  - "Nah - Youtube Not Interested Button" (https://github.com/lozog/not-interested-youtube)
-  - "Youtube 1-Click Not-Interested" userscript (https://github.com/kannanmavila/youtube-1-click-not-interested)
-  - RYS — Remove YouTube Suggestions (https://github.com/lawrencehook/remove-youtube-suggestions) for overall YT extension architecture and dynamic handling.
-- YouTube user frustration reports around weak "watched" signals.
-
-## License
-MIT or whatever you prefer for personal tool. (Add explicit license file if distributing.)
+```bash
+npm install
+npm run dev        # or npm run dev:win on Windows with a fixed Firefox path
+npm run lint
+npm run build      # produces dist/yt-rec-fix-{version}.zip
+```
 
 ---
 
-Made to solve one specific annoying loop. Local control > hoping the algo listens.
+## Usage
+
+### Recommendation blocking
+
+1. Browse YouTube (Home, sidebar related, etc.).
+2. Click **Watched** or **Dislike** on cards you do not want again.
+3. Use the toolbar popup for block count, toggles, and **Clear all blocked videos**.
+
+### Section hiding
+
+1. Open the popup → **Hide sections**.
+2. Enable the shelves you want gone (e.g. all three channel toggles + Shorts for a minimal channel home).
+3. Changes apply live via `storage.onChanged`; no reload required in most cases.
+
+### Popup reference
+
+| Section | Toggles |
+|---------|---------|
+| **Recommendations** | Hide blocked videos, inject buttons, auto-block on watch, prefer dislike reason, optional Ch button |
+| **Hide sections** | Shorts, Explore more topics, Most relevant, channel For You, channel Feature |
+| **Debugging** | Console logging (feedback traces + section scans) |
+
+---
+
+## Project structure
+
+```
+yt-rec-fix/
+├── manifest.json
+├── content/
+│   ├── yt-rec-fix.js      # Main logic: rec scan, feedback automation, section detectors
+│   └── styles.css         # Card buttons + section hide + debug markers
+├── popup/                 # Toolbar popup (settings → storage)
+├── icons/
+├── images/                # README screenshots
+└── tmp/                   # Local dev only (HTML exports, probes) — not required for users
+```
+
+---
+
+## How it works (technical)
+
+- **Video IDs** from `a[href*="watch?v="]` (11-character IDs).
+- **Rec hiding** — `data-yt-rec-fix-hidden`; feedback automation completes before visual hide so “Tell us why” panels remain clickable.
+- **Section hiding** — `data-yt-rec-fix-section-hidden` on `ytd-rich-section-renderer` / `ytd-item-section-renderer`; per-detector settings keys; rescans on navigation (`yt-navigate-finish`) and DOM mutations.
+- **Feedback automation** — Label + SVG matching patterns adapted from public userscript/extension work (see Credits).
+
+Selectors are defensive (multiple fallbacks). YouTube UI changes may require detector updates; local hiding remains the most reliable part.
+
+### Debug
+
+Enable **Enable debug logging** in the popup, then filter the browser console for `YT-Rec-Fix`. Section scans log a table when the DOM changes (no manual console commands needed).
+
+Advanced: `window.__YT_REC_FIX__` in the content-script context exposes feedback debug helpers when needed.
+
+---
+
+## Limitations
+
+- UI automation can break when YouTube ships new web components; update detectors in `content/yt-rec-fix.js`.
+- Section hiding targets known shelf patterns; new shelf types need new detectors.
+- Does not remove items from playlists, search (unless they match block rules), or subscribed channel lists you explicitly open.
+- Desktop `www.youtube.com` is the primary target.
+- Icons are placeholders — replace before a public store listing.
+
+---
+
+## Roadmap
+
+- Blocklist viewer / per-video unblock in a full options page
+- Export / import blocklist (JSON)
+- Keyword or title-pattern blocking
+- More section detectors as YouTube adds shelves
+
+---
+
+## Contributing
+
+Issues and pull requests welcome on GitHub. For UI changes, include which YouTube surfaces you tested (Home, Subscriptions, channel home, watch sidebar).
+
+```bash
+npm run lint
+```
+
+---
+
+## Credits / inspiration
+
+- [Nah — Youtube Not Interested Button](https://github.com/lozog/not-interested-youtube)
+- [youtube-1-click-not-interested](https://github.com/kannanmavila/youtube-1-click-not-interested)
+- [remove-youtube-suggestions](https://github.com/lawrencehook/remove-youtube-suggestions) — SPA / observer patterns
+
+---
+
+## License
+
+MIT (see `LICENSE`).
+
+---
+
+Made for people who want **local control** over what YouTube shows — on individual recommendations *and* whole sections — without hoping the algorithm listens.

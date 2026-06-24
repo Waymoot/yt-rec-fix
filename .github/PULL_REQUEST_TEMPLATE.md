@@ -10,8 +10,9 @@ Why is this change needed? Link to issue if applicable.
 
 ## Testing
 - How did you test? (manual on YouTube home/sidebar/search, popup toggles, clear, etc.)
+- Section hiding (if applicable): which toggles, which pages (subscriptions, channel home, etc.)?
 - Any console warnings with debug on?
-- Affected surfaces: homepage / sidebar / search / watch page?
+- Affected surfaces: homepage / sidebar / search / watch page / channel home?
 
 ## Checklist
 - [ ] `npm run lint` (or `web-ext lint`) passes (once dev deps installed)

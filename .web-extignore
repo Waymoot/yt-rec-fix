@@ -1,4 +1,45 @@
-# Files to exclude from web-ext build (distribution zip for AMO upload, in addition to .gitignore)
+# Exclude from web-ext build / addon package
+# (web-ext respects this file)
+
+# Dev / build artifacts
+.git/
+.gitignore
+.gitattributes
+*.log
+*.zip
+*.xpi
+dist/
+web-ext-artifacts/
+node_modules/
+
+# Project meta & docs (not needed in addon)
 package.json
 package-lock.json
+README.md
+CHANGELOG.md
+dev-testing.md
+LOCAL-*.md
+*-notes.md
+
+# Local debug / large assets
+tmp/
 images/
+screenshots/
+
+# MCP / Grok Build session files (large json dumps, not part of addon)
+mcps/
+terminals/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*~
+*.swp
+*Zone.Identifier
+*:Zone.Identifier
+
+# Other
+.github/
+LICENSE
+# Note: keep LICENSE if you want, it's tiny; excluded here to keep package ultra-minimal like core files only.

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "YT Rec Fix (Watched Blocker)",
-  "version": "0.1.6",
-  "description": "One-click 'watched + not interested' feedback + reliable local hiding to stop YouTube from re-recommending videos you've already watched. Makes the 5-step process instant.",
+  "name": "YT Rec Fix — YouTube Recommendation Fix",
+  "version": "0.2.0",
+  "description": "One-click watched/not-interested + local rec hiding. Hide YouTube sections: Shorts, For You, Feature, Explore topics, Most relevant. Fast feedback without the 5-step menu.",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",

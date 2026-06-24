@@ -97,6 +97,7 @@
     preferDislike: false,
     debug: false,
     showChannelButton: false,  // off by default: "Don't recommend channel" is irreversible on YT; user must opt-in via popup
+    hideShorts: false,         // hide Shorts shelves (subscriptions etc.) — separate from rec blocking
   };
   let lastUrl = location.href;
   let debounceTimer = null;
@@ -219,6 +220,136 @@
     return card && card.hasAttribute('data-yt-rec-fix-hidden');
   }
 
+  // --- Section hiding (Shorts etc.) — active on ALL YT pages, including subscriptions ---
+  const SECTION_HIDDEN_ATTR = 'data-yt-rec-fix-section-hidden';
+
+  const SECTION_DETECTORS = [
+    {
+      id: 'shorts',
+      label: 'Shorts',
+      settingKey: 'hideShorts',
+      detect(section) {
+        const shelf = section.querySelector('ytd-rich-shelf-renderer');
+        if (!shelf) return { match: false, reason: 'no ytd-rich-shelf-renderer' };
+
+        // Primary signal from tmp/yt-shorts-section.txt export
+        if (shelf.hasAttribute('is-shorts')) {
+          return { match: true, reason: 'ytd-rich-shelf-renderer[is-shorts]' };
+        }
+
+        const title = shelf.querySelector('#title, span#title');
+        const titleText = (title?.textContent || '').trim();
+        if (titleText === 'Shorts') {
+          return { match: true, reason: 'shelf #title === Shorts' };
+        }
+
+        if (
+          section.querySelector('ytm-shorts-lockup-view-model-v2, ytm-shorts-lockup-view-model') &&
+          section.querySelector('a[href*="/shorts"]')
+        ) {
+          return { match: true, reason: 'shorts lockup + /shorts/ link' };
+        }
+
+        return { match: false, reason: 'no shorts signals' };
+      },
+    },
+  ];
+
+  function findSectionContainers() {
+    return Array.from(document.querySelectorAll('ytd-rich-section-renderer'));
+  }
+
+  function describeSection(section) {
+    const shelf = section.querySelector('ytd-rich-shelf-renderer');
+    const title = shelf?.querySelector('#title, span#title');
+    return {
+      tag: section.tagName.toLowerCase(),
+      hidden: section.hasAttribute(SECTION_HIDDEN_ATTR),
+      hiddenAs: section.getAttribute(SECTION_HIDDEN_ATTR) || null,
+      shelfIsShorts: shelf ? shelf.hasAttribute('is-shorts') : null,
+      shelfTitle: (title?.textContent || '').trim() || null,
+      hasShortsLockup: !!section.querySelector(
+        'ytm-shorts-lockup-view-model-v2, ytm-shorts-lockup-view-model'
+      ),
+    };
+  }
+
+  function matchSectionById(sectionId) {
+    const det = SECTION_DETECTORS.find((d) => d.id === sectionId);
+    if (!det) {
+      return { error: 'unknown section id', ids: SECTION_DETECTORS.map((d) => d.id) };
+    }
+    return findSectionContainers()
+      .map((section) => ({
+        section,
+        result: det.detect(section),
+        ...describeSection(section),
+      }))
+      .filter((row) => row.result.match);
+  }
+
+  function probeSections(opts = {}) {
+    const rows = findSectionContainers().map((section, index) => {
+      const desc = describeSection(section);
+      const matches = SECTION_DETECTORS.map((det) => {
+        const result = det.detect(section);
+        return { id: det.id, label: det.label, ...result };
+      }).filter((m) => m.match);
+      return { index, ...desc, matches };
+    });
+
+    console.log('[YT-Rec-Fix] probeSections — found', rows.length, 'ytd-rich-section-renderer');
+    console.table(
+      rows.map((r) => ({
+        index: r.index,
+        shelfTitle: r.shelfTitle,
+        isShorts: r.shelfIsShorts,
+        matches: r.matches.map((m) => `${m.id} (${m.reason})`).join('; ') || '-',
+        hidden: r.hiddenAs || r.hidden,
+      }))
+    );
+
+    if (opts.apply) processSections({ force: true });
+    return rows;
+  }
+
+  function hideSectionEl(section, sectionId) {
+    if (!section || section.getAttribute(SECTION_HIDDEN_ATTR) === sectionId) return;
+    section.setAttribute(SECTION_HIDDEN_ATTR, sectionId);
+    log('hid section', sectionId);
+  }
+
+  function unhideSectionEl(section) {
+    if (section) section.removeAttribute(SECTION_HIDDEN_ATTR);
+  }
+
+  function unhideAllSections() {
+    document.querySelectorAll(`[${SECTION_HIDDEN_ATTR}]`).forEach(unhideSectionEl);
+    log('unhid all sections');
+  }
+
+  function processSections(opts = {}) {
+    const force = !!opts.force;
+
+    for (const det of SECTION_DETECTORS) {
+      const enabled = force || settings[det.settingKey];
+      if (!enabled) continue;
+
+      for (const section of findSectionContainers()) {
+        const { match } = det.detect(section);
+        if (match) hideSectionEl(section, det.id);
+      }
+    }
+
+    if (!force) {
+      document.querySelectorAll(`[${SECTION_HIDDEN_ATTR}]`).forEach((section) => {
+        const id = section.getAttribute(SECTION_HIDDEN_ATTR);
+        const det = SECTION_DETECTORS.find((d) => d.id === id);
+        if (det && !settings[det.settingKey]) unhideSectionEl(section);
+      });
+    }
+  }
+
   // --- Core scan + hide + button injection ---
   function findCards() {
     const cards = new Set();
@@ -338,7 +469,10 @@
 
   function debouncedProcess() {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(processRecommendations, DEBOUNCE_MS);
+    debounceTimer = setTimeout(() => {
+      processSections();
+      processRecommendations();
+    }, DEBOUNCE_MS);
   }
 
   // --- YT feedback automation ---
@@ -959,6 +1093,7 @@
       // Re-process everything on new "page"
       // Small delay for YT to render new content
       setTimeout(() => {
+        processSections();
         processRecommendations();
         if (location.pathname === '/watch') {
           handleWatchPage();
@@ -966,7 +1101,10 @@
       }, 600);
 
       // Another sweep a bit later (virtual lists)
-      setTimeout(processRecommendations, 1600);
+      setTimeout(() => {
+        processSections();
+        processRecommendations();
+      }, 1600);
     }
   }
 
@@ -999,6 +1137,7 @@
     // YT-specific navigation event (very helpful)
     window.addEventListener('yt-navigate-finish', () => {
       setTimeout(() => {
+        processSections();
         processRecommendations();
         if (location.pathname === '/watch') handleWatchPage();
       }, 400);
@@ -1022,6 +1161,7 @@
           const oldHide = settings.hideBlocked;
           const oldInject = settings.injectButtons;
           const oldShowChannel = settings.showChannelButton;
+          const oldHideShorts = settings.hideShorts;
           settings = { ...settings, ...newS };
 
           if (newS.debug !== undefined) {
@@ -1036,7 +1176,15 @@
           // wrappers first (the dedup guard in ensureButtons is generic over any .yt-rec-fix-btn),
           // otherwise cards that already have the two primary buttons would never get/lose the Ch button.
           const channelPrefChanged = oldShowChannel !== settings.showChannelButton;
-          if (oldHide !== settings.hideBlocked || oldInject !== settings.injectButtons || channelPrefChanged) {
+          if (
+            oldHide !== settings.hideBlocked ||
+            oldInject !== settings.injectButtons ||
+            channelPrefChanged ||
+            oldHideShorts !== settings.hideShorts
+          ) {
+            if (oldHideShorts !== settings.hideShorts && !settings.hideShorts) {
+              unhideAllSections();
+            }
             if (channelPrefChanged) {
               // Remove all our button wrappers so ensureButtons will re-evaluate the channel button
               // based on the *current* setting value. This enables live toggling without page reload.
@@ -1069,6 +1217,7 @@
     }
 
     // First sweep
+    processSections();
     processRecommendations();
 
     // If we landed on a watch page, track it
@@ -1080,7 +1229,10 @@
     setupObservers();
 
     // One more sweep after everything likely loaded
-    setTimeout(processRecommendations, 2200);
+    setTimeout(() => {
+      processSections();
+      processRecommendations();
+    }, 2200);
 
     // Expose a tiny API for debugging / popup advanced use
     window.__YT_REC_FIX__ = {
@@ -1116,6 +1268,12 @@
       },
       describeEl,
       setupApiInterceptors,
+      // --- Section hiding debug API (see tmp/hide-sections-plan.md) ---
+      probeSections,
+      matchSection: matchSectionById,
+      hideSections: processSections,
+      unhideAllSections,
+      sectionDetectorIds: () => SECTION_DETECTORS.map((d) => d.id),
     };
   }
 

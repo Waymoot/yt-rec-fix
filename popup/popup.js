@@ -35,7 +35,8 @@ async function loadUI() {
     autoBlockWatch: true,
     preferDislike: false,
     debug: false,
-    showChannelButton: false  // off by default (irreversible YT action)
+    showChannelButton: false,  // off by default (irreversible YT action)
+    hideShorts: false
   };
 
   // Set checkboxes
@@ -45,9 +46,10 @@ async function loadUI() {
   document.getElementById('auto-block-watch').checked = !!settings.autoBlockWatch;
   document.getElementById('prefer-dislike').checked = !!settings.preferDislike;
   document.getElementById('debug').checked = !!settings.debug;
+  document.getElementById('hide-shorts').checked = !!settings.hideShorts;
 
   // Wire changes
-  ['hide-blocked', 'inject-buttons', 'show-channel-button', 'auto-block-watch', 'prefer-dislike', 'debug'].forEach(id => {
+  ['hide-blocked', 'inject-buttons', 'show-channel-button', 'auto-block-watch', 'prefer-dislike', 'debug', 'hide-shorts'].forEach(id => {
     const el = document.getElementById(id);
     el.addEventListener('change', async () => {
       const newSettings = {
@@ -56,7 +58,8 @@ async function loadUI() {
         showChannelButton: document.getElementById('show-channel-button').checked,
         autoBlockWatch: document.getElementById('auto-block-watch').checked,
         preferDislike: document.getElementById('prefer-dislike').checked,
-        debug: document.getElementById('debug').checked
+        debug: document.getElementById('debug').checked,
+        hideShorts: document.getElementById('hide-shorts').checked
       };
       await setStorage({ settings: newSettings });
       // Content scripts will pick up via storage.onChanged

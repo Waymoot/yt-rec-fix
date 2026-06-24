@@ -59,6 +59,11 @@
   display: none !important;
 }
 
+/* Whole section hiding (Shorts shelves etc.) */
+[data-yt-rec-fix-section-hidden] {
+  display: none !important;
+}
+
 /* Optional visual for cards we just acted on (before full hide) */
 .yt-rec-fix-just-blocked {
   opacity: 0.3;

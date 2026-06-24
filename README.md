@@ -100,7 +100,18 @@ With **debug** enabled, hidden sections can show a thin red marker (`hidden sect
 
 1. Open [GitHub Releases](https://github.com/Waymoot/yt-rec-fix/releases/latest).
 2. Download the `.xpi` for the current version.
-3. Firefox → `about:addons` → gear menu → **Install Add-on From File…**
+3. Firefox → `about:addons` → gear menu (top right) → **Install Add-on From File…**
+4. Select the downloaded `.xpi`.
+
+**Permission after install or upgrade**
+
+Firefox often asks you to explicitly allow the addon on YouTube (especially on manual upgrades of unlisted builds). The screenshot below shows the menu:
+
+- Go to any `www.youtube.com` page.
+- Right-click the **YT Rec Fix** icon in the toolbar (or the puzzle piece) → choose **Always Allow on www.youtube.com**.
+- Alternative: Puzzle icon → YT Rec Fix → gear/cog → allow **"Access your data for www.youtube.com"**.
+
+Once granted it usually sticks until the next manual upgrade.
 
 Unlisted Mozilla-signed builds **do not auto-update** and **do not appear in AMO search** — check Releases for new versions.
 
@@ -113,7 +124,9 @@ cd yt-rec-fix
 
 1. Firefox → `about:debugging#/runtime/this-firefox`
 2. **Load Temporary Add-on…** → select `manifest.json` in the project root
-3. Grant **Access your data for www.youtube.com** if prompted (puzzle icon → extension settings)
+3. Grant permission if prompted:
+   - Right-click the icon (or puzzle piece) → **Always Allow on www.youtube.com**, or
+   - Puzzle icon → YT Rec Fix → gear → allow **"Access your data for www.youtube.com"**
 4. Open https://www.youtube.com
 
 **Tip:** Use your normal Firefox profile via `about:debugging` (not a throwaway `web-ext` profile) so you stay logged in.

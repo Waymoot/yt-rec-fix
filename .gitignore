@@ -26,3 +26,7 @@ screenshots/
 dev-testing.md
 LOCAL-*.md
 *-notes.md
+
+# Grok Build session artifacts (auto-generated per workspace)
+mcps/
+terminals/

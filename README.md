@@ -127,7 +127,7 @@ This is normal with Firefox + Manifest V3 when you manually install a new `.xpi`
 
 Alternative: Puzzle icon → YT Rec Fix → gear icon → grant "Access your data for www.youtube.com".
 
-We are looking into using optional permissions for a smoother experience in a future update.
+We have implemented optional permissions + an in-popup grant button in the current main branch (will be in next release) for a smoother experience.
 
 ### Temporary load (development)
 

@@ -43,12 +43,12 @@ async function setStorage(obj) {
   });
 }
 
-const YOUTUBE_ORIGIN = "https://www.youtube.com/*";
+const YOUTUBE_ORIGINS = ['https://www.youtube.com/*', 'https://youtube.com/*'];
 
 async function hasYouTubePermission() {
   try {
     if (!ext.permissions) return true; // assume granted in old environments
-    return await ext.permissions.contains({ origins: [YOUTUBE_ORIGIN] });
+    return await ext.permissions.contains({ origins: YOUTUBE_ORIGINS });
   } catch (e) {
     return true;
   }
@@ -57,7 +57,7 @@ async function hasYouTubePermission() {
 async function requestYouTubePermission() {
   try {
     if (!ext.permissions) return true;
-    const granted = await ext.permissions.request({ origins: [YOUTUBE_ORIGIN] });
+    const granted = await ext.permissions.request({ origins: YOUTUBE_ORIGINS });
     return granted;
   } catch (e) {
     console.warn('[YT-Rec-Fix popup] permission request failed', e);

@@ -70,11 +70,11 @@ You can at any time:
 | `storage` | Save blocklist and settings on your device only |
 | `activeTab` | Refresh the current YouTube tab from the popup when you request it |
 | `tabs` | Find and reload the active YouTube tab from the popup (e.g. after granting site access) |
-| `https://www.youtube.com/*` (host) | Run on YouTube to inject buttons, hide blocked cards, and hide optional page sections |
+| `https://www.youtube.com/*` and `https://youtube.com/*` (host) | Run on YouTube (with or without `www`) to inject buttons, hide blocked cards, and hide optional page sections |
 
 **Firefox:** `data_collection_permissions` is set to **none** in the extension manifest.
 
-**Chrome:** Host access is declared as `host_permissions` for `https://www.youtube.com/*` only. No other sites are accessed.
+**Chrome:** Host access is declared as `host_permissions` for `https://www.youtube.com/*` and `https://youtube.com/*` only. No other sites are accessed.
 
 ---
 

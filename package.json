@@ -1,6 +1,6 @@
 {
   "name": "yt-rec-fix",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Firefox addon: one-click rec blocking, local hiding, and optional YouTube section hiding",
   "private": true,
   "scripts": {

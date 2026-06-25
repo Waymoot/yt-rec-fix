@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YT Rec Fix — YouTube Recommendation Fix",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "One-click watched/dislike on YouTube recs + local blocklist. Hide Shorts, For You, Feature, topics & more. No servers.",
   "icons": {
     "16": "icons/icon-16.png",
@@ -10,7 +10,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*.youtube.com/*"],
+      "matches": ["*://*.youtube.com/*", "*://youtube.com/*"],
       "js": ["content/yt-rec-fix.js"],
       "css": ["content/styles.css"],
       "run_at": "document_idle"
@@ -23,7 +23,7 @@
     }
   },
   "permissions": ["storage", "activeTab", "tabs"],
-  "optional_host_permissions": ["https://www.youtube.com/*"],
+  "optional_host_permissions": ["https://www.youtube.com/*", "https://youtube.com/*"],
   "browser_specific_settings": {
     "gecko": {
       "id": "yt-rec-fix@danney.ytaddon",

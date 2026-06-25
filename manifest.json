@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "YT Rec Fix — YouTube Recommendation Fix",
   "version": "0.2.0",
-  "description": "One-click watched/not-interested + local rec hiding. Hide YouTube sections: Shorts, For You, Feature, Explore topics, Most relevant. Fast feedback without the 5-step menu.",
+  "description": "One-click watched/dislike on YouTube recs + local blocklist. Hide Shorts, For You, Feature, topics & more. No servers.",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",

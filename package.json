@@ -7,7 +7,9 @@
     "dev": "web-ext run --target=firefox-desktop --source-dir . --verbose",
     "dev:win": "web-ext run --target=firefox-desktop --source-dir . --verbose --firefox-binary=\"C:\\\\Program Files\\\\Mozilla Firefox\\\\firefox.exe\"",
     "dev:chromium": "web-ext run -t chromium --source-dir .",
-    "build": "web-ext build --overwrite-dest --source-dir . --artifacts-dir dist --ignore-files \"package.json\" \"package-lock.json\" \"images\" \"images/**\" \"tmp\" \"tmp/**\" \"mcps\" \"mcps/**\" \"dev-testing.md\" \"README.md\" \"CHANGELOG.md\" \".github\" \".github/**\" --filename \"yt-rec-fix-{version}.zip\"",
+    "build": "npm run build:firefox && npm run build:chrome",
+    "build:firefox": "node scripts/build-firefox.mjs",
+    "build:chrome": "node scripts/build-chrome.mjs",
     "lint": "web-ext lint --source-dir ."
   },
   "devDependencies": {

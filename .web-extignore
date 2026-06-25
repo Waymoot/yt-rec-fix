@@ -39,6 +39,9 @@ terminals/
 *Zone.Identifier
 *:Zone.Identifier
 
+# Build scripts (not part of addon package)
+scripts/
+
 # Other
 .github/
 LICENSE

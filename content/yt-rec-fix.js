@@ -101,6 +101,7 @@
     hideExploreMoreTopics: false,
     hideMostRelevant: false,
     hideForYou: false,
+    hidePopularVideos: false,
     hideChannelFeature: false,
   };
   let lastUrl = location.href;
@@ -376,6 +377,30 @@
         }
 
         return { match: true, reason: 'ytd-shelf-renderer #title === For You' };
+      },
+    },
+    {
+      id: 'popular-videos',
+      label: 'Popular videos',
+      settingKey: 'hidePopularVideos',
+      detect(section) {
+        const shelf = section.querySelector('ytd-shelf-renderer');
+        if (!shelf) return { match: false, reason: 'no ytd-shelf-renderer' };
+
+        const titleText = (shelf.querySelector('#title, span#title')?.textContent || '').trim().toLowerCase();
+        const isPopular = titleText === 'popular videos' || titleText === 'populära videos';
+        if (!isPopular) return { match: false, reason: 'title not Popular videos' };
+
+        // tmp/yt-popular-videos.txt — channel home shelf (same structure as For You), e.g. "Popular videos" / "Populära videos"
+        if (section.matches('ytd-item-section-renderer[page-subtype="channels"]')) {
+          return { match: true, reason: 'channel item-section + shelf title Popular videos' };
+        }
+
+        if (shelf.querySelector('yt-horizontal-list-renderer[is-channel]')) {
+          return { match: true, reason: 'channel horizontal shelf + Popular videos' };
+        }
+
+        return { match: true, reason: 'ytd-shelf-renderer #title === Popular videos' };
       },
     },
     {

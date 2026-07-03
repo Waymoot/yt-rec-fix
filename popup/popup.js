@@ -14,6 +14,7 @@ const DEFAULT_SETTINGS = {
   hideExploreMoreTopics: false,
   hideMostRelevant: false,
   hideForYou: false,
+  hidePopularVideos: false,
   hideChannelFeature: false,
 };
 
@@ -27,6 +28,7 @@ const SETTING_CONTROLS = [
   { id: 'hide-explore-topics', key: 'hideExploreMoreTopics' },
   { id: 'hide-most-relevant', key: 'hideMostRelevant' },
   { id: 'hide-for-you', key: 'hideForYou' },
+  { id: 'hide-popular-videos', key: 'hidePopularVideos' },
   { id: 'hide-channel-feature', key: 'hideChannelFeature' },
   { id: 'debug', key: 'debug' },
 ];

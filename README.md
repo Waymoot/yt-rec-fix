@@ -3,7 +3,7 @@
 **YouTube Recommendation Fix** (short name: **YT Rec Fix**)
 
 > **v0.1** — *Fast “I watched this / don’t recommend” clicking* — one-click feedback + a persistent local blocklist so re-recommended videos stay hidden.  
-> **v0.2** — *…and Section Hider* — optionally hide whole YouTube shelves (Shorts, channel For You / Feature, topic rows, and more) so feeds and channel pages stay focused on what you actually want.
+> **v0.2** — *…and Section Hider* — optionally hide whole YouTube shelves (Shorts, channel For You / Popular videos / Feature, topic rows, and more) so feeds and channel pages stay focused on what you actually want.
 
 Firefox (Manifest V3). All client-side: blocklist and settings live in `browser.storage.local`. YouTube feedback network calls only happen when **you** click Watched / Dislike / Ch — the same actions as the native menus.
 
@@ -19,12 +19,12 @@ See [`CHANGELOG.md`](CHANGELOG.md) for release history. Install via [GitHub Rele
 
 YouTube’s manual flow to stop a video from coming back is tedious: ⋯ → Not interested → Tell us why → checkboxes → Submit. It is easy to skip, and the algorithm often ignores “watched” anyway.
 
-Separately, YouTube keeps injecting shelves you did not ask for — Shorts carousels, “For You” picks on channel pages, a lone “Feature” promote, topic chips, and “Most relevant” blocks — which push the content you actually want (e.g. a channel’s latest uploads) further down the page.
+Separately, YouTube keeps injecting shelves you did not ask for — Shorts carousels, “For You” / “Popular videos” picks on channel pages, a lone “Feature” promote, topic chips, and “Most relevant” blocks — which push the content you actually want (e.g. a channel’s latest uploads) further down the page.
 
 ## What this addon does
 
 1. **Recommendation fix (original core)** — Small buttons on rec cards; one click runs the full feedback flow and adds the video to a **persistent local blocklist** so it disappears from your views immediately.
-2. **Hide sections (new in v0.2.0)** — Independent toggles to hide entire page sections. Works on feeds *and* channel home tabs. Does not depend on the rec-blocking toggles.
+2. **Hide sections (v0.2.0+)** — Independent toggles to hide entire page sections (Shorts, channel For You, Popular videos, Feature, topics, Most relevant). Works on feeds *and* channel home tabs. Does not depend on the rec-blocking toggles.
 
 Everything runs in the page via a content script (`MutationObserver` + debounced rescans). No background servers.
 
@@ -41,7 +41,7 @@ Everything runs in the page via a content script (`MutationObserver` + debounced
   <img src="images/addon_04.png" width="45%" alt="Dislike and optional channel button" />
 </div>
 
-### Popup (v0.2.0) — three grouped sections
+### Popup (v0.2.0+) — three grouped sections (Popular videos toggle added in 0.2.2)
 
 <div align="center">
   <img src="images/addon_05_popup.png" width="88%" alt="YT Rec Fix popup: Recommendations, Hide sections, and Debugging" />
@@ -50,7 +50,7 @@ Everything runs in the page via a content script (`MutationObserver` + debounced
 ### Channel page with sections hidden (cleaner “latest videos” view)
 
 <div align="center">
-  <img src="images/addon_06_channel_clean.png" width="88%" alt="Channel page after hiding Feature, For You, and Shorts shelves" />
+  <img src="images/addon_06_channel_clean.png" width="88%" alt="Channel page after hiding Feature, For You, Popular videos and Shorts shelves" />
 </div>
 
 ---
@@ -67,7 +67,7 @@ Everything runs in the page via a content script (`MutationObserver` + debounced
 - **Reduced UI flash** — Intermediate “Tell us why” panels are handled so automation stays reliable but feels cleaner.
 - **Debug mode** — Verbose console traces and optional section-scan tables when tuning selectors.
 
-### Hide sections (v0.2.0)
+### Hide sections (v0.2.0+)
 
 Each target is detected from YouTube’s DOM (shelf titles, component tags, and stable attributes). Toggle only what you want:
 
@@ -77,7 +77,10 @@ Each target is detected from YouTube’s DOM (shelf titles, component tags, and 
 | **Explore more topics** | Topic chip + video shelf | Home / feed grids |
 | **Most relevant** | “Most relevant” shelf | Feed-style pages |
 | **Channel For You** | Horizontal “For You” shelf on a channel | Channel home (`ytd-shelf-renderer`) |
+| **Channel Popular videos** | “Popular videos” / “Populära videos” shelf on a channel | Channel home (`ytd-shelf-renderer`) |
 | **Channel Feature** | Single promoted “Feature” card | Channel home (`ytd-channel-featured-content-renderer`) |
+
+**v0.2.2** added the **Popular videos** toggle (English + Swedish titles) right under the For You checkbox in the popup.
 
 Section hiding is **separate** from rec blocking: it still runs on pages like `/feed/subscriptions` even when you only care about layout cleanup.
 
@@ -177,7 +180,7 @@ npm run build      # produces dist/yt-rec-fix-{version}.zip
 | Section | Toggles |
 |---------|---------|
 | **Recommendations** | Hide blocked videos, inject buttons, auto-block on watch, prefer dislike reason, optional Ch button |
-| **Hide sections** | Shorts, Explore more topics, Most relevant, channel For You, channel Feature |
+| **Hide sections** | Shorts, Explore more topics, Most relevant, channel For You, channel Popular videos, channel Feature |
 | **Debugging** | Console logging (feedback traces + section scans) |
 
 ---

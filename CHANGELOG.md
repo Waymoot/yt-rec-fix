@@ -4,6 +4,12 @@ All notable changes to **YT Rec Fix** (*YouTube Recommendation Fix*) are documen
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.2] — 2026-07-03
+
+### Added
+- **Hide "Popular videos" on channel pages** — new toggle to hide the "Popular videos" (and Swedish "Populära videos") horizontal shelf that appears on channel home pages, right next to the existing "For You" shelf. Checkbox placed under "For You" in the popup's **Hide sections** area.
+- Supports both English and localized titles. Uses the same `ytd-shelf-renderer` + channel page detection pattern.
+
 ## [0.2.0] — 2026-06-24
 
 ### Added — Hide sections on YouTube

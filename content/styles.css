@@ -60,13 +60,39 @@
 }
 
 /* Whole section hiding (Shorts shelves etc.) */
-[data-yt-rec-fix-section-hidden]:not(.yt-rec-fix-section-debug-hidden) {
+[data-yt-rec-fix-section-hidden]:not(.yt-rec-fix-section-soft-hide):not(.yt-rec-fix-section-debug-hidden) {
   display: none !important;
 }
 
+/* Search results: collapse without display:none (avoids YT search refetch loops) */
+[data-yt-rec-fix-section-hidden].yt-rec-fix-section-soft-hide:not(.yt-rec-fix-section-debug-hidden) {
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  pointer-events: none !important;
+}
+
 /* Debug: collapse section content but leave a visible marker on page */
-.yt-rec-fix-section-debug-hidden[data-yt-rec-fix-section-hidden] > *:not(.yt-rec-fix-section-hidden-marker) {
+.yt-rec-fix-section-debug-hidden[data-yt-rec-fix-section-hidden]:not(.yt-rec-fix-section-soft-hide) > *:not(.yt-rec-fix-section-hidden-marker) {
   display: none !important;
+}
+
+/* Debug on search: soft-collapse content, keep marker visible (avoids refetch amplification) */
+.yt-rec-fix-section-debug-hidden[data-yt-rec-fix-section-hidden].yt-rec-fix-section-soft-hide > *:not(.yt-rec-fix-section-hidden-marker) {
+  visibility: hidden !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  pointer-events: none !important;
 }
 
 .yt-rec-fix-section-hidden-marker {

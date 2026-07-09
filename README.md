@@ -156,7 +156,7 @@ Reload the temporary addon after code changes. Hard-reload YouTube (`Ctrl+Shift+
 npm install
 npm run dev        # or npm run dev:win on Windows with a fixed Firefox path
 npm run lint
-npm run build      # produces dist/yt-rec-fix-{version}.zip
+npm run build      # produces dist/yt-rec-fix-{version}.zip (Firefox) + dist/yt-rec-fix-chrome-{version}.zip
 ```
 
 ---

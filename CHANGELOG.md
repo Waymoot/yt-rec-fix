@@ -4,6 +4,17 @@ All notable changes to **YT Rec Fix** (*YouTube Recommendation Fix*) are documen
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.3] — 2026-07-09
+
+### Fixed
+
+- **Hide Shorts on search results** — no longer triggers repeated search reloads / duplicate fetches. YouTube’s new `grid-shelf-view-model` Shorts shelf on `/results` is hidden correctly (only the inner shelf, not parent `ytd-item-section-renderer` wrappers). Fixes the loop that could stack dozens of hidden Shorts sections in the DOM.
+- **Search Shorts hiding** uses soft-collapse CSS on `/results` (not `display: none`) to avoid provoking YouTube resize-observer refetches.
+
+### Changed
+
+- **Verbose section debug is off by default** — the extended trace tooling (`dumpDebugTrace`, `listShortsSections`, page-console `__YT_REC_FIX__`, search-fetch timeline, section `#id` markers) remains in source behind `VERBOSE_SECTION_DEBUG = false` in `content/yt-rec-fix.js`. Popup **Debug** still enables the original v0.2 section scans, on-page markers, and feedback/network logging. Set the flag to `true` and reload the extension when deep-diving Shorts/search issues.
+
 ## [0.2.2] — 2026-07-03
 
 ### Added
@@ -49,4 +60,6 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Auto-block on `/watch` pages, debug logging, reduced feedback UI flash.
 - Firefox MV3, `storage.local`, unlisted signed `.xpi` releases.
 
+[0.2.3]: https://github.com/Waymoot/yt-rec-fix/releases/tag/v0.2.3
+[0.2.2]: https://github.com/Waymoot/yt-rec-fix/releases/tag/v0.2.2
 [0.2.0]: https://github.com/Waymoot/yt-rec-fix/releases/tag/v0.2.0

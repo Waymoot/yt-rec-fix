@@ -87,6 +87,11 @@
     );
   }
 
+  function isSearchResultsPage() {
+    const path = location.pathname;
+    return path === '/results' || path.startsWith('/results/');
+  }
+
   // In-memory state
   let blockedVideoIds = new Set();
   let blockedChannels = new Set(); // channel names/handles for now
@@ -172,9 +177,222 @@
   }
 
   // --- Logging ---
+  function isDebugActive() {
+    return !!(settings.debug || DEBUG);
+  }
+
   function log(...args) {
-    if (settings.debug || DEBUG) {
+    if (isDebugActive()) {
       console.log('[YT-Rec-Fix]', ...args);
+    }
+  }
+
+  // --- Verbose section/search debug (OFF by default — keep in source for next investigation) ---
+  // Flip to true + reload extension when debugging Shorts-on-search loops, duplicate hides, refetch.
+  // Also requires popup "Debug" ON. Tools: dumpDebugTrace(), listShortsSections(), page __YT_REC_FIX__.help()
+  // Session notes: tmp/debug_trace_1.txt (v0.2.3)
+  const VERBOSE_SECTION_DEBUG = false;
+
+  function isVerboseSectionDebug() {
+    return VERBOSE_SECTION_DEBUG && isDebugActive();
+  }
+
+  function verboseDebugDisabledHint() {
+    const msg =
+      '[YT-Rec-Fix] Verbose section debug is off. Set VERBOSE_SECTION_DEBUG = true in content/yt-rec-fix.js, reload extension + page.';
+    console.warn(msg);
+    return { verbose: false, hint: msg };
+  }
+
+  // --- Debug trace (ring buffer) — only when VERBOSE_SECTION_DEBUG + popup Debug ---
+  const DEBUG_TRACE_MAX = 250;
+  const DEBUG_SECTION_ID_ATTR = 'data-yt-rec-fix-debug-section-id';
+  const debugTrace = [];
+  let debugSectionSeq = 0;
+  let debugSearchFetchSeq = 0;
+  let debugLifecycleObserver = null;
+  const sectionDebugIdByEl = new WeakMap();
+
+  function debugTraceAdd(type, detail = {}) {
+    if (!isVerboseSectionDebug()) return;
+    const entry = {
+      t: Date.now(),
+      dt: Math.round(performance.now()),
+      type,
+      path: location.pathname,
+      query: location.search.slice(0, 120),
+      ...detail,
+    };
+    debugTrace.push(entry);
+    if (debugTrace.length > DEBUG_TRACE_MAX) debugTrace.shift();
+
+    const loudTypes = new Set([
+      'search-fetch',
+      'section-hide-new',
+      'section-removed',
+      'yt-navigate-finish',
+    ]);
+    if (loudTypes.has(type)) {
+      console.log('[YT-Rec-Fix][trace]', type, entry);
+    }
+  }
+
+  function debugTraceClear() {
+    debugTrace.length = 0;
+    debugSearchFetchSeq = 0;
+  }
+
+  function getOrAssignSectionDebugId(section) {
+    if (!section || !isVerboseSectionDebug()) return null;
+    let id = section.getAttribute(DEBUG_SECTION_ID_ATTR);
+    if (!id) {
+      id = sectionDebugIdByEl.get(section);
+    }
+    if (!id) {
+      debugSectionSeq += 1;
+      id = String(debugSectionSeq);
+      section.setAttribute(DEBUG_SECTION_ID_ATTR, id);
+      sectionDebugIdByEl.set(section, id);
+      debugTraceAdd('section-seen', {
+        id,
+        tag: section.tagName.toLowerCase(),
+        title: getSectionTitleText(section),
+        inDom: document.contains(section),
+      });
+    }
+    return id;
+  }
+
+  function countShortsSectionsInDom() {
+    let total = 0;
+    let hidden = 0;
+    let hiddenByUs = 0;
+    for (const section of findSectionContainers()) {
+      const det = SECTION_DETECTORS.find((d) => d.id === 'shorts');
+      if (!det || !det.detect(section).match) continue;
+      total += 1;
+      if (section.hasAttribute(SECTION_HIDDEN_ATTR)) hiddenByUs += 1;
+      const hiddenAttr = section.getAttribute(SECTION_HIDDEN_ATTR);
+      if (hiddenAttr || section.classList.contains(SECTION_DEBUG_CLASS)) hidden += 1;
+    }
+    return { total, hidden, hiddenByUs };
+  }
+
+  function summarizeDomNodes(nodes) {
+    const summary = {
+      gridShelf: 0,
+      shortsLockup: 0,
+      itemSection: 0,
+      richSection: 0,
+      ourMarkers: 0,
+      total: 0,
+    };
+    const walk = (node) => {
+      if (!node || node.nodeType !== 1) return;
+      summary.total += 1;
+      const tag = node.tagName ? node.tagName.toLowerCase() : '';
+      if (tag === 'grid-shelf-view-model') summary.gridShelf += 1;
+      if (tag === 'ytm-shorts-lockup-view-model-v2' || tag === 'ytm-shorts-lockup-view-model') {
+        summary.shortsLockup += 1;
+      }
+      if (tag === 'ytd-item-section-renderer') summary.itemSection += 1;
+      if (tag === 'ytd-rich-section-renderer') summary.richSection += 1;
+      if (node.classList && node.classList.contains(SECTION_MARKER_CLASS)) summary.ourMarkers += 1;
+    };
+    for (const node of nodes) {
+      walk(node);
+      if (node.querySelectorAll) {
+        node.querySelectorAll(
+          'grid-shelf-view-model, ytm-shorts-lockup-view-model-v2, ytm-shorts-lockup-view-model, .yt-rec-fix-section-hidden-marker'
+        ).forEach(walk);
+      }
+    }
+    return summary;
+  }
+
+  function dumpDebugTrace(opts = {}) {
+    if (!isVerboseSectionDebug()) return verboseDebugDisabledHint();
+    const rows = opts.all ? debugTrace.slice() : debugTrace.slice(-80);
+    console.log('[YT-Rec-Fix] debug trace dump —', rows.length, 'events');
+    console.table(rows.map((e) => ({
+      ms: e.dt,
+      type: e.type,
+      path: e.path,
+      ...Object.fromEntries(
+        Object.entries(e).filter(([k]) => !['t', 'dt', 'type', 'path', 'query'].includes(k))
+      ),
+    })));
+
+    const timelineTypes = new Set([
+      'search-fetch',
+      'section-hide-new',
+      'section-removed',
+      'mutation-added',
+      'yt-navigate-finish',
+      'process-sections-skip',
+      'search-cleanup-wrappers',
+    ]);
+    const timeline = rows.filter((e) => timelineTypes.has(e.type));
+    if (timeline.length) {
+      console.log('[YT-Rec-Fix] key timeline (search/shorts loop):');
+      console.table(timeline.map((e) => ({
+        ms: e.dt,
+        type: e.type,
+        seq: e.seq,
+        id: e.id,
+        shorts: e.shortsInDom || e.shortsAfter || e.shorts || e.added,
+        reason: e.reason || e.trigger,
+      })));
+    }
+
+    const shorts = countShortsSectionsInDom();
+    console.log('[YT-Rec-Fix] shorts in DOM now:', shorts);
+    console.log('[YT-Rec-Fix] search fetches this session:', debugSearchFetchSeq);
+    return { events: rows, shorts, searchFetches: debugSearchFetchSeq, timeline };
+  }
+
+  function setupVerboseSectionDebugTools() {
+    if (!isVerboseSectionDebug()) return;
+    setupSectionLifecycleObserver();
+    injectPageBridgeScript();
+    debugTraceClear();
+    debugTraceAdd('verbose-debug-ready', { href: location.href });
+    log('Verbose section debug ON — konsol: __YT_REC_FIX__.help()');
+  }
+
+  function setupSectionLifecycleObserver() {
+    if (!isVerboseSectionDebug() || debugLifecycleObserver) return;
+    debugLifecycleObserver = new MutationObserver((mutations) => {
+      if (!isVerboseSectionDebug()) return;
+      for (const m of mutations) {
+        if (!m.removedNodes || !m.removedNodes.length) continue;
+        for (const node of m.removedNodes) {
+          if (node.nodeType !== 1) continue;
+          const check = (el) => {
+            if (!el.hasAttribute || !el.hasAttribute(SECTION_HIDDEN_ATTR)) return;
+            const id = el.getAttribute(DEBUG_SECTION_ID_ATTR) || sectionDebugIdByEl.get(el) || '?';
+            debugTraceAdd('section-removed', {
+              id,
+              sectionId: el.getAttribute(SECTION_HIDDEN_ATTR),
+              tag: el.tagName.toLowerCase(),
+              title: getSectionTitleText(el),
+              parentTag: m.target && m.target.tagName ? m.target.tagName.toLowerCase() : null,
+            });
+          };
+          check(node);
+          if (node.querySelectorAll) {
+            node.querySelectorAll(`[${SECTION_HIDDEN_ATTR}]`).forEach(check);
+          }
+        }
+      }
+    });
+    debugLifecycleObserver.observe(document.documentElement, { childList: true, subtree: true });
+  }
+
+  function teardownSectionLifecycleObserver() {
+    if (debugLifecycleObserver) {
+      debugLifecycleObserver.disconnect();
+      debugLifecycleObserver = null;
     }
   }
 
@@ -232,7 +450,10 @@
   // --- Section hiding (Shorts etc.) — active on ALL YT pages, including subscriptions ---
   const SECTION_HIDDEN_ATTR = 'data-yt-rec-fix-section-hidden';
   const SECTION_DEBUG_CLASS = 'yt-rec-fix-section-debug-hidden';
+  const SECTION_SOFT_HIDE_CLASS = 'yt-rec-fix-section-soft-hide';
   const SECTION_MARKER_CLASS = 'yt-rec-fix-section-hidden-marker';
+  const SEARCH_SECTION_PROCESS_COOLDOWN_MS = 1200;
+  let lastSearchSectionProcessAt = 0;
 
   function getSectionTitleText(section) {
     const shelf = section.querySelector('ytd-rich-shelf-renderer');
@@ -259,6 +480,13 @@
       if (chipsText) return chipsText;
     }
 
+    // Search results Shorts shelf — tmp/shorts.txt (grid-shelf-view-model)
+    const gridShelfHeader = section.querySelector(
+      '.ytShelfHeaderLayoutTitle, h2.ytShelfHeaderLayoutTitle, yt-shelf-header-layout h2'
+    );
+    const gridShelfText = (gridShelfHeader?.textContent || '').trim();
+    if (gridShelfText) return gridShelfText;
+
     const featured = section.querySelector('ytd-channel-featured-content-renderer');
     if (featured) {
       const featureTitle = (
@@ -277,6 +505,19 @@
       label: 'Shorts',
       settingKey: 'hideShorts',
       detect(section) {
+        // Search (/results): only the inner grid-shelf — never parent wrappers.
+        // tmp/debug_trace_1.txt showed 32 hides (ytd-item-section-renderer + grid-shelf pairs).
+        if (isSearchResultsPage()) {
+          if (!section.matches('grid-shelf-view-model')) {
+            return { match: false, reason: 'search: only grid-shelf-view-model' };
+          }
+          const gridTitle = getSectionTitleText(section);
+          if (gridTitle === 'Shorts') {
+            return { match: true, reason: 'search grid-shelf-view-model title Shorts' };
+          }
+          return { match: false, reason: 'search grid-shelf title not Shorts' };
+        }
+
         const richShelf = section.querySelector('ytd-rich-shelf-renderer');
         if (richShelf) {
           // Feed/home/subscriptions — tmp/yt-shorts-section.txt
@@ -431,7 +672,9 @@
 
   function findSectionContainers() {
     const containers = new Set();
-    document.querySelectorAll('ytd-rich-section-renderer, ytd-item-section-renderer').forEach((el) => {
+    document.querySelectorAll(
+      'ytd-rich-section-renderer, ytd-item-section-renderer, grid-shelf-view-model'
+    ).forEach((el) => {
       containers.add(el);
     });
     return Array.from(containers);
@@ -464,6 +707,7 @@
   }
 
   let lastSectionScanFingerprint = '';
+  let lastLoggedShortsTotal = -1;
 
   function buildSectionScanRows() {
     return findSectionContainers().map((section, index) => {
@@ -472,7 +716,7 @@
         const result = det.detect(section);
         return result.match ? `${det.id} (${result.reason})` : null;
       }).filter(Boolean);
-      return {
+      const row = {
         index,
         container: desc.tag,
         shelfTitle: desc.shelfTitle,
@@ -480,11 +724,17 @@
         matches: matches.join('; ') || '-',
         hidden: desc.hiddenAs || desc.hidden || '-',
       };
+      if (isVerboseSectionDebug()) {
+        row.dbgId = section.getAttribute(DEBUG_SECTION_ID_ATTR) || '-';
+        row.inDom = document.contains(section);
+        row.resizeObserverId = section.getAttribute('data-resize-observer-id') || '-';
+      }
+      return row;
     });
   }
 
   function logSectionScan(trigger) {
-    if (!settings.debug && !DEBUG) return;
+    if (!isDebugActive()) return;
 
     const forceLog = trigger === 'init' || trigger === 'navigate' || trigger === 'toggle';
     const rows = buildSectionScanRows();
@@ -492,14 +742,35 @@
     if (!forceLog && fingerprint === lastSectionScanFingerprint) return;
     lastSectionScanFingerprint = fingerprint;
 
-    console.log(
-      '[YT-Rec-Fix] section scan',
-      `(${trigger}) —`,
-      rows.length,
-      'section containers',
-      `(hide: ${sectionHideSettingsSummary()})`
-    );
-    if (rows.length) console.table(rows);
+    if (isVerboseSectionDebug()) {
+      const shortsStats = countShortsSectionsInDom();
+      if (forceLog || shortsStats.total !== lastLoggedShortsTotal) {
+        lastLoggedShortsTotal = shortsStats.total;
+        debugTraceAdd('section-scan', {
+          trigger: trigger || 'process',
+          containers: rows.length,
+          shorts: shortsStats,
+          hide: sectionHideSettingsSummary(),
+        });
+        console.log(
+          '[YT-Rec-Fix] section scan',
+          `(${trigger}) —`,
+          rows.length,
+          'containers, shorts:',
+          shortsStats
+        );
+        if (forceLog && rows.length) console.table(rows);
+      }
+    } else {
+      console.log(
+        '[YT-Rec-Fix] section scan',
+        `(${trigger}) —`,
+        rows.length,
+        'section containers',
+        `(hide: ${sectionHideSettingsSummary()})`
+      );
+      if (forceLog && rows.length) console.table(rows);
+    }
   }
 
   function sectionLabelForId(sectionId) {
@@ -513,21 +784,45 @@
       marker = document.createElement('div');
       marker.className = SECTION_MARKER_CLASS;
       section.prepend(marker);
+      debugTraceAdd('debug-marker-added', {
+        id: getOrAssignSectionDebugId(section),
+        sectionId,
+        tag: section.tagName.toLowerCase(),
+      });
     }
-    marker.textContent = `hidden section (${sectionLabelForId(sectionId)})`;
+    if (isVerboseSectionDebug()) {
+      const dbgId = getOrAssignSectionDebugId(section);
+      const resizeId = section.getAttribute('data-resize-observer-id') || '-';
+      marker.textContent = `hidden section (${sectionLabelForId(sectionId)}) #${dbgId} ro=${resizeId}`;
+    } else {
+      marker.textContent = `hidden section (${sectionLabelForId(sectionId)})`;
+    }
   }
 
   function clearSectionDebugMarker(section) {
     section.querySelectorAll(`.${SECTION_MARKER_CLASS}`).forEach((el) => el.remove());
     section.classList.remove(SECTION_DEBUG_CLASS);
+    section.classList.remove(SECTION_SOFT_HIDE_CLASS);
   }
 
   function applySectionHiddenPresentation(section, sectionId) {
     if (settings.debug) {
       section.classList.add(SECTION_DEBUG_CLASS);
       ensureSectionDebugMarker(section, sectionId);
+      // Search + debug: still avoid display:none on content (amplifies YT refetch loop).
+      if (isSearchResultsPage()) {
+        section.classList.add(SECTION_SOFT_HIDE_CLASS);
+      } else {
+        section.classList.remove(SECTION_SOFT_HIDE_CLASS);
+      }
     } else {
       clearSectionDebugMarker(section);
+      // Search: collapse without display:none — avoids YT resize-observer refetch loops.
+      if (isSearchResultsPage()) {
+        section.classList.add(SECTION_SOFT_HIDE_CLASS);
+      } else {
+        section.classList.remove(SECTION_SOFT_HIDE_CLASS);
+      }
     }
   }
 
@@ -539,10 +834,24 @@
 
   function hideSectionEl(section, sectionId, reason) {
     if (!section) return;
+    const dbgId = getOrAssignSectionDebugId(section);
     const alreadyHidden = section.getAttribute(SECTION_HIDDEN_ATTR) === sectionId;
     if (!alreadyHidden) {
       section.setAttribute(SECTION_HIDDEN_ATTR, sectionId);
-      log('hid section', sectionId, reason || '');
+      log('hid section', sectionId, reason || '', `#${dbgId}`);
+      debugTraceAdd('section-hide-new', {
+        id: dbgId,
+        sectionId,
+        reason: reason || '',
+        tag: section.tagName.toLowerCase(),
+        title: getSectionTitleText(section),
+        resizeObserverId: section.getAttribute('data-resize-observer-id'),
+        softHide: section.classList.contains(SECTION_SOFT_HIDE_CLASS),
+        searchPage: isSearchResultsPage(),
+      });
+    } else {
+      debugTraceAdd('section-hide-refresh', { id: dbgId, sectionId, reason: reason || '' });
+      return;
     }
     applySectionHiddenPresentation(section, sectionId);
   }
@@ -560,8 +869,63 @@
     log('unhid all sections');
   }
 
+  function isInsideHiddenShortsSection(section) {
+    let p = section.parentElement;
+    while (p) {
+      if (p.getAttribute(SECTION_HIDDEN_ATTR) === 'shorts') return true;
+      p = p.parentElement;
+    }
+    return false;
+  }
+
+  // Undo wrongly hidden parent wrappers from older versions / overly broad matching.
+  function cleanupSearchShortsWrapperHides() {
+    if (!isSearchResultsPage() || !settings.hideShorts) return 0;
+    let cleaned = 0;
+    document.querySelectorAll(`ytd-item-section-renderer[${SECTION_HIDDEN_ATTR}="shorts"]`).forEach((section) => {
+      unhideSectionEl(section);
+      cleaned += 1;
+    });
+    if (cleaned) {
+      debugTraceAdd('search-cleanup-wrappers', { cleaned });
+      log('cleaned wrongly hidden search wrapper sections', cleaned);
+    }
+    return cleaned;
+  }
+
   function processSections(opts = {}) {
     const force = !!opts.force;
+    const onSearch = isSearchResultsPage();
+    const now = Date.now();
+
+    if (
+      onSearch &&
+      !force &&
+      opts.scanTrigger !== 'navigate' &&
+      opts.scanTrigger !== 'toggle' &&
+      opts.scanTrigger !== 'init' &&
+      now - lastSearchSectionProcessAt < SEARCH_SECTION_PROCESS_COOLDOWN_MS
+    ) {
+      debugTraceAdd('process-sections-skip', {
+        trigger: opts.scanTrigger || 'process',
+        reason: 'search-cooldown',
+        msSinceLast: now - lastSearchSectionProcessAt,
+        cooldownMs: SEARCH_SECTION_PROCESS_COOLDOWN_MS,
+      });
+      return;
+    }
+    if (onSearch) lastSearchSectionProcessAt = now;
+
+    if (onSearch && settings.hideShorts) {
+      cleanupSearchShortsWrapperHides();
+    }
+
+    debugTraceAdd('process-sections-run', {
+      trigger: opts.scanTrigger || 'process',
+      force,
+      onSearch,
+      shortsBefore: countShortsSectionsInDom(),
+    });
 
     for (const det of SECTION_DETECTORS) {
       const enabled = force || settings[det.settingKey];
@@ -569,7 +933,9 @@
 
       for (const section of findSectionContainers()) {
         const result = det.detect(section);
-        if (result.match) hideSectionEl(section, det.id, result.reason);
+        if (!result.match) continue;
+        if (det.id === 'shorts' && onSearch && isInsideHiddenShortsSection(section)) continue;
+        hideSectionEl(section, det.id, result.reason);
       }
     }
 
@@ -581,6 +947,11 @@
       });
     }
 
+    const shortsAfter = countShortsSectionsInDom();
+    debugTraceAdd('process-sections-done', {
+      trigger: opts.scanTrigger || 'process',
+      shortsAfter,
+    });
     logSectionScan(opts.scanTrigger || 'process');
   }
 
@@ -701,10 +1072,21 @@
     }
   }
 
-  function debouncedProcess() {
+  function debouncedProcess(trigger = 'debounce') {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      processSections();
+      debugTraceAdd('debounced-process', { trigger });
+      const onSearch = isSearchResultsPage();
+      const skipSearchPoll =
+        trigger === 'poll' &&
+        onSearch &&
+        settings.hideShorts &&
+        countShortsSectionsInDom().hiddenByUs > 0;
+      if (skipSearchPoll) {
+        debugTraceAdd('process-sections-skip', { trigger, reason: 'search-poll-already-hidden' });
+      } else {
+        processSections({ scanTrigger: trigger });
+      }
       processRecommendations();
     }, DEBOUNCE_MS);
   }
@@ -1196,11 +1578,37 @@
       const origFetch = window.fetch;
       window.fetch = async function(input, init) {
         try {
-          if (settings.debug) {
+          if (isDebugActive()) {
             const u = (typeof input === 'string' ? input : (input && input.url) || '').toString();
-            if (u.includes('youtube.com') && (/feedback|dislike|like|browse|next|player/i.test(u) || u.includes('youtubei'))) {
+            const isYt = u.includes('youtube.com') && u.includes('youtubei');
+            const isSearch = isVerboseSectionDebug() && (
+              /\/search(\?|$)/i.test(u) ||
+              (isSearchResultsPage() && /\/browse(\?|$)/i.test(u))
+            );
+            const isInteresting = isSearch || /feedback|dislike|like|browse|next|player/i.test(u);
+
+            if (isYt && isInteresting) {
               const method = (init && init.method ? init.method : 'GET').toUpperCase();
-              log('YT network:', method, u);
+              if (isSearch && isVerboseSectionDebug()) {
+                debugSearchFetchSeq += 1;
+                const stack = (new Error('search-fetch trace')).stack || '';
+                const stackLines = stack.split('\n').slice(1, 8).map((s) => s.trim());
+                debugTraceAdd('search-fetch', {
+                  seq: debugSearchFetchSeq,
+                  method,
+                  url: u.split('?')[0],
+                  shortsInDom: countShortsSectionsInDom(),
+                  stack: stackLines,
+                });
+                console.warn(
+                  `[YT-Rec-Fix][trace] search-fetch #${debugSearchFetchSeq}`,
+                  method,
+                  u.split('?')[0],
+                  countShortsSectionsInDom()
+                );
+              } else {
+                log('YT network:', method, u);
+              }
               // Best-effort: surface feedback bodies (the actual signal payload)
               if (u.includes('feedback') && init && init.body) {
                 const body = typeof init.body === 'string' ? init.body : null;
@@ -1322,6 +1730,9 @@
   function checkNavigation() {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
+      lastSearchSectionProcessAt = 0;
+      lastLoggedShortsTotal = -1;
+      debugTraceAdd('navigation', { href: lastUrl });
       log('navigated to', lastUrl);
 
       // Re-process everything on new "page"
@@ -1342,6 +1753,57 @@
     }
   }
 
+  // --- Page bridge: expose __YT_REC_FIX__ in the normal DevTools console ---
+  // Content scripts run in an isolated world — page console cannot see window.__YT_REC_FIX__ directly.
+  function injectPageBridgeScript() {
+    if (document.documentElement.hasAttribute('data-yt-rec-fix-bridge')) return;
+    if (!ext.runtime || !ext.runtime.getURL) return;
+    const s = document.createElement('script');
+    s.src = ext.runtime.getURL('content/page-bridge.js');
+    s.onload = () => s.remove();
+    s.onerror = () => console.warn('[YT-Rec-Fix] page-bridge.js failed to load (CSP?)');
+    (document.head || document.documentElement).appendChild(s);
+    document.documentElement.setAttribute('data-yt-rec-fix-bridge', '1');
+  }
+
+  function setupPageBridge() {
+    if (!VERBOSE_SECTION_DEBUG) return;
+    injectPageBridgeScript();
+    window.addEventListener('message', async (event) => {
+      if (event.source !== window) return;
+      const data = event.data;
+      if (!data || data.type !== 'YT_REC_FIX_CMD') return;
+      const api = window.__YT_REC_FIX__;
+      if (!api) {
+        window.postMessage({
+          type: 'YT_REC_FIX_RESPONSE',
+          id: data.id,
+          error: 'addon API not ready — reload extension + page',
+        }, '*');
+        return;
+      }
+      try {
+        const fn = api[data.cmd];
+        if (typeof fn !== 'function') {
+          window.postMessage({
+            type: 'YT_REC_FIX_RESPONSE',
+            id: data.id,
+            error: `unknown command: ${data.cmd}`,
+          }, '*');
+          return;
+        }
+        const result = await fn(...(data.args || []));
+        window.postMessage({ type: 'YT_REC_FIX_RESPONSE', id: data.id, result }, '*');
+      } catch (e) {
+        window.postMessage({
+          type: 'YT_REC_FIX_RESPONSE',
+          id: data.id,
+          error: String(e && e.message || e),
+        }, '*');
+      }
+    });
+  }
+
   // --- Observers and timers ---
   function setupObservers() {
     // Main content area + body for broad coverage
@@ -1349,13 +1811,26 @@
 
     const observer = new MutationObserver((mutations) => {
       let shouldProcess = false;
+      let addedSummary = null;
       for (const m of mutations) {
         if (m.addedNodes && m.addedNodes.length) {
           shouldProcess = true;
-          break;
+          if (isVerboseSectionDebug()) {
+            addedSummary = summarizeDomNodes(m.addedNodes);
+            if (
+              addedSummary.gridShelf ||
+              addedSummary.shortsLockup ||
+              addedSummary.ourMarkers
+            ) {
+              debugTraceAdd('mutation-added', {
+                target: m.target && m.target.tagName ? m.target.tagName.toLowerCase() : null,
+                added: addedSummary,
+              });
+            }
+          }
         }
       }
-      if (shouldProcess) debouncedProcess();
+      if (shouldProcess) debouncedProcess('mutation');
     });
 
     observer.observe(target, { childList: true, subtree: true });
@@ -1365,11 +1840,12 @@
     pollTimer = setInterval(() => {
       checkNavigation();
       // Occasional full sweep (catches virtual scroll / lazy)
-      debouncedProcess();
+      debouncedProcess('poll');
     }, POLL_INTERVAL_MS);
 
     // YT-specific navigation event (very helpful)
     window.addEventListener('yt-navigate-finish', () => {
+      debugTraceAdd('yt-navigate-finish', { href: location.href });
       setTimeout(() => {
         processSections({ scanTrigger: 'navigate' });
         processRecommendations();
@@ -1404,7 +1880,10 @@
             // debug affects logging, interceptors, and section-hide markers on page
             if (newS.debug) {
               setupApiInterceptors();
-              log('debug enabled - expect verbose feedback traces + YT network logs on next button use');
+              setupVerboseSectionDebugTools();
+              log('debug enabled');
+            } else if (oldDebug && !settings.debug) {
+              teardownSectionLifecycleObserver();
             }
             if (oldDebug !== settings.debug) {
               syncAllSectionDebugMarkers();
@@ -1453,7 +1932,8 @@
       settings
     });
     if (settings.debug) {
-      log('Debug mode active on startup. Open browser console (F12) for section scans + feedback traces.');
+      setupVerboseSectionDebugTools();
+      log('Debug mode active');
     }
 
     // First sweep
@@ -1466,6 +1946,7 @@
       setTimeout(handleWatchPage, 800);
     }
 
+    setupPageBridge();
     setupObservers();
 
     // One more sweep after everything likely loaded
@@ -1477,10 +1958,35 @@
     // Expose a tiny API for feedback debugging (rec blocking — not section hiding)
     window.__YT_REC_FIX__ = {
       getBlocked: () => Array.from(blockedVideoIds),
-      block: async (id) => { blockedVideoIds.add(id); await persistBlocked(); debouncedProcess(); },
+      block: async (id) => { blockedVideoIds.add(id); await persistBlocked(); debouncedProcess('api'); },
       clear: async () => { blockedVideoIds.clear(); blockedChannels.clear(); await persistBlocked(); document.querySelectorAll('[data-yt-rec-fix-hidden]').forEach(unhideCard); },
       reprocess: processRecommendations,
       settings,
+      // Verbose section/search debug (VERBOSE_SECTION_DEBUG in source + popup Debug)
+      getDebugTrace: () => (isVerboseSectionDebug() ? debugTrace.slice() : verboseDebugDisabledHint()),
+      clearDebugTrace: () => (isVerboseSectionDebug() ? debugTraceClear() : verboseDebugDisabledHint()),
+      dumpDebugTrace,
+      getShortsSectionStats: () => (
+        isVerboseSectionDebug() ? countShortsSectionsInDom() : verboseDebugDisabledHint()
+      ),
+      listShortsSections: (opts = {}) => {
+        if (!isVerboseSectionDebug()) return verboseDebugDisabledHint();
+        const rows = [];
+        for (const section of findSectionContainers()) {
+          const det = SECTION_DETECTORS.find((d) => d.id === 'shorts');
+          if (!det || !det.detect(section).match) continue;
+          rows.push({
+            id: getOrAssignSectionDebugId(section),
+            tag: section.tagName.toLowerCase(),
+            title: getSectionTitleText(section),
+            hidden: section.getAttribute(SECTION_HIDDEN_ATTR),
+            inDom: document.contains(section),
+            resizeObserverId: section.getAttribute('data-resize-observer-id'),
+          });
+        }
+        if (opts.table !== false) console.table(rows);
+        return rows;
+      },
       debugTriggerFeedback: async (cardEl, actionType = 'watched') => {
         if (!cardEl) {
           console.warn('[YT-Rec-Fix] Pass a card DOM element (e.g. a ytd-rich-item-renderer that contains a video)');

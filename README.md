@@ -157,6 +157,8 @@ After code changes: `npm run prepare:dev-firefox` again → **Reload** the tempo
 
 **Tip:** You can stay logged in on your normal Firefox profile; production and DEV keep **separate** storage.
 
+**PR / release:** Always ship with the **production** gecko id `yt-rec-fix@danney.ytaddon` (root `manifest.json`). Use `npm run build` / `build:firefox` — never package `dist/firefox-dev` for AMO or GitHub Releases. The DEV id exists only for local temporary testing.
+
 ### Optional: `web-ext` dev loop
 
 ```bash

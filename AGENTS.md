@@ -48,6 +48,30 @@ If the user is about to do the old “disable signed → load temp from root” 
 
 ---
 
+## ⛔ CRITICAL: PR / release — always production `gecko.id`
+
+When preparing a **PR**, **version bump**, **`npm run build`**, AMO upload, or **GitHub release**:
+
+| Step | gecko.id | Source |
+|------|----------|--------|
+| **Release / PR build** | **`yt-rec-fix@danney.ytaddon`** (unchanged) | Repo-root `manifest.json` → `npm run build` / `build:firefox` / `build:chrome` |
+| **Local temp testing only** | `yt-rec-fix-dev@danney.ytaddon` | **Only** under `dist/firefox-dev/` via `npm run prepare:dev-firefox` |
+
+### Rules
+
+1. **Never** commit the DEV id into root `manifest.json`. Production id must stay `yt-rec-fix@danney.ytaddon` for all releases so Firefox treats the new `.xpi` as an **upgrade** of the same addon (storage/blocklist continuity).
+2. `prepare:dev-firefox` only writes into **`dist/firefox-dev/`** (gitignored via `dist/`). It must not rewrite root `manifest.json`.
+3. Release pipeline is always the real build:
+   ```bash
+   npm run build          # or build:firefox + build:chrome
+   ```
+   That packages **root** `manifest.json` → same production gecko id as previous releases.
+4. Before tagging/releasing, agents should **confirm** root `manifest.json` still has `"id": "yt-rec-fix@danney.ytaddon"` (not `-dev@`).
+5. When discussing “ship 0.x.y”, remind the user briefly:
+   > **Release uses production id (`yt-rec-fix@danney.ytaddon`) via `npm run build`. DEV id is only for local temp load.**
+
+---
+
 ## Product context (short)
 
 - Firefox + Chrome MV3 extension: rec-blocklist + optional section hiding on YouTube.
@@ -58,7 +82,7 @@ If the user is about to do the old “disable signed → load temp from root” 
 
 ## Builds
 
-- `npm run build` → Firefox zip + Chrome zip under `dist/`
-- `npm run prepare:dev-firefox` → `dist/firefox-dev/` for safe temporary load
-- Production gecko id: `yt-rec-fix@danney.ytaddon` (never change casually)
-- Dev gecko id: `yt-rec-fix-dev@danney.ytaddon` (only in `dist/firefox-dev`)
+- `npm run build` / `build:firefox` / `build:chrome` → **production** packages (gecko id `yt-rec-fix@danney.ytaddon` from root `manifest.json`)
+- `npm run prepare:dev-firefox` → `dist/firefox-dev/` only (gecko id `yt-rec-fix-dev@danney.ytaddon`) — **not** for release
+- Production gecko id: `yt-rec-fix@danney.ytaddon` (**required** for PR/release; never change casually)
+- Dev gecko id: `yt-rec-fix-dev@danney.ytaddon` (**only** in `dist/firefox-dev`)

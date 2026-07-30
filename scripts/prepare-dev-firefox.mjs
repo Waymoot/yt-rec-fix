@@ -57,6 +57,10 @@ async function main() {
 ║  3. Select: dist/firefox-dev/manifest.json                       ║
 ║  4. Grant YouTube access on the DEV addon if prompted            ║
 ║  5. After code changes: npm run prepare:dev-firefox + Reload     ║
+║                                                                  ║
+║  RELEASE / PR: use npm run build (root manifest).                ║
+║  Production gecko.id stays: yt-rec-fix@danney.ytaddon            ║
+║  Never ship dist/firefox-dev to AMO or GitHub Releases.          ║
 ╚══════════════════════════════════════════════════════════════════╝
 `);
 }

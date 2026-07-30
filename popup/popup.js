@@ -78,10 +78,25 @@ function readSettingsFromUI() {
   return settings;
 }
 
+function isDevExtension() {
+  try {
+    const id = ext.runtime.id || '';
+    // Firefox gecko id for local temp: yt-rec-fix-dev@danney.ytaddon
+    // Chrome unpacked uses a generated id; also treat explicit DEV name as signal.
+    const name = (ext.runtime.getManifest()?.name || '').toUpperCase();
+    return id.includes('yt-rec-fix-dev@') || name.includes(' DEV');
+  } catch {
+    return false;
+  }
+}
+
 async function loadUI() {
   const manifest = ext.runtime.getManifest();
   const verEl = document.getElementById('version');
-  if (verEl) verEl.textContent = `(ver: ${manifest.version})`;
+  if (verEl) {
+    const dev = isDevExtension() ? ' DEV' : '';
+    verEl.textContent = `(ver: ${manifest.version}${dev})`;
+  }
 
   const data = await getStorage(['blockedVideoIds', 'settings']);
 

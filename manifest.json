@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "YT Rec Fix — YouTube Recommendation Fix",
-  "version": "0.2.3",
-  "description": "One-click watched/dislike + local blocklist on YouTube. Hide Shorts, For You, Popular videos, Feature, topics & more. No servers.",
+  "version": "0.2.4",
+  "description": "One-click watched/dislike + local blocklist on YouTube. Hide Shorts, Breaking news, For You, Popular videos, Feature, topics & more. No servers.",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",

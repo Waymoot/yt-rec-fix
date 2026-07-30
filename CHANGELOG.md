@@ -4,6 +4,12 @@ All notable changes to **YT Rec Fix** (*YouTube Recommendation Fix*) are documen
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.4] — 2026-07-30
+
+### Added
+
+- **Hide "Breaking news" on Home** — new toggle for YouTube’s news Shorts shelf (`ytd-rich-shelf-renderer` titled “Breaking news”). This shelf is **not** the same as regular Shorts (`is-shorts`); it uses `ytd-rich-grid-media` items linking to `/shorts/…`, so it needs its own detector. Checkbox under **Hide sections** in the popup. Tested on Firefox and Chrome.
+
 ## [0.2.3] — 2026-07-09
 
 ### Fixed
@@ -60,6 +66,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Auto-block on `/watch` pages, debug logging, reduced feedback UI flash.
 - Firefox MV3, `storage.local`, unlisted signed `.xpi` releases.
 
+[0.2.4]: https://github.com/Waymoot/yt-rec-fix/releases/tag/v0.2.4
 [0.2.3]: https://github.com/Waymoot/yt-rec-fix/releases/tag/v0.2.3
 [0.2.2]: https://github.com/Waymoot/yt-rec-fix/releases/tag/v0.2.2
 [0.2.0]: https://github.com/Waymoot/yt-rec-fix/releases/tag/v0.2.0

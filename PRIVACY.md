@@ -23,7 +23,7 @@ When you block videos or change settings, YT Rec Fix saves the following in your
 
 - Blocked video IDs and optional channel keys for the local blocklist
 - Extension settings (hide blocked videos, inject buttons, auto-block on watch, prefer dislike reason, optional Ch button)
-- Section-hide toggles (Shorts, Explore more topics, Most relevant, channel For You, channel Popular videos, channel Feature)
+- Section-hide toggles (Shorts, Breaking news, Explore more topics, Most relevant, channel For You, channel Popular videos, channel Feature)
 - Debug mode preference
 
 This data **never leaves your browser** through YT Rec Fix. It is not transmitted to the developer or to any third-party service operated by the developer.

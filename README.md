@@ -24,7 +24,7 @@ Separately, YouTube keeps injecting shelves you did not ask for — Shorts carou
 ## What this addon does
 
 1. **Recommendation fix (original core)** — Small buttons on rec cards; one click runs the full feedback flow and adds the video to a **persistent local blocklist** so it disappears from your views immediately.
-2. **Hide sections (v0.2.0+)** — Independent toggles to hide entire page sections (Shorts, channel For You, Popular videos, Feature, topics, Most relevant). Works on feeds *and* channel home tabs. Does not depend on the rec-blocking toggles.
+2. **Hide sections (v0.2.0+)** — Independent toggles to hide entire page sections (Shorts, Breaking news, channel For You, Popular videos, Feature, topics, Most relevant). Works on feeds *and* channel home tabs. Does not depend on the rec-blocking toggles.
 
 Everything runs in the page via a content script (`MutationObserver` + debounced rescans). No background servers.
 
@@ -74,13 +74,14 @@ Each target is detected from YouTube’s DOM (shelf titles, component tags, and 
 | Toggle | What it hides | Typical surfaces |
 |--------|----------------|------------------|
 | **Shorts** | Shorts shelves | Subscriptions, Home, **channel pages** (`ytd-rich-shelf-renderer[is-shorts]` and channel `ytd-reel-shelf-renderer`) |
+| **Breaking news** | Home “Breaking news” news-Shorts shelf | Home (`ytd-rich-shelf-renderer` titled “Breaking news”; not `is-shorts`) |
 | **Explore more topics** | Topic chip + video shelf | Home / feed grids |
 | **Most relevant** | “Most relevant” shelf | Feed-style pages |
 | **Channel For You** | Horizontal “For You” shelf on a channel | Channel home (`ytd-shelf-renderer`) |
 | **Channel Popular videos** | “Popular videos” / “Populära videos” shelf on a channel | Channel home (`ytd-shelf-renderer`) |
 | **Channel Feature** | Single promoted “Feature” card | Channel home (`ytd-channel-featured-content-renderer`) |
 
-**v0.2.2** added the **Popular videos** toggle (English + Swedish titles) right under the For You checkbox in the popup.
+**v0.2.4** added the **Breaking news** toggle. **v0.2.2** added **Popular videos** (English + Swedish titles).
 
 Section hiding is **separate** from rec blocking: it still runs on pages like `/feed/subscriptions` even when you only care about layout cleanup.
 

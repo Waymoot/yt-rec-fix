@@ -133,23 +133,29 @@ Alternative: Puzzle icon → YT Rec Fix → gear icon → grant "Access your dat
 
 We have implemented optional permissions + an in-popup grant button in the current main branch (will be in next release) for a smoother experience.
 
-### Temporary load (development)
+### Temporary load (development) — use a **dev** extension id
+
+> **Do not** disable the signed `.xpi` and load the repo-root `manifest.json`.  
+> That reuses the production `gecko.id` and can **wipe your blocklist** / host permissions when you switch back.  
+> See [`AGENTS.md`](AGENTS.md) for the full rule.
+
+**Safe path (signed release stays installed and enabled):**
 
 ```bash
 git clone https://github.com/Waymoot/yt-rec-fix.git
 cd yt-rec-fix
+npm run prepare:dev-firefox
 ```
 
 1. Firefox → `about:debugging#/runtime/this-firefox`
-2. **Load Temporary Add-on…** → select `manifest.json` in the project root
-3. Grant permission if prompted:
-   - Right-click the icon (or puzzle piece) → **Always Allow on www.youtube.com**, or
-   - Puzzle icon → YT Rec Fix → gear → allow **"Access your data for www.youtube.com"**
-4. Open https://www.youtube.com
+2. **Load Temporary Add-on…** → select **`dist/firefox-dev/manifest.json`** (not the project root)
+3. You should see **YT Rec Fix DEV** (id `yt-rec-fix-dev@danney.ytaddon`) alongside the signed release
+4. Grant YouTube permission on the **DEV** addon if prompted
+5. Open https://www.youtube.com
 
-**Tip:** Use your normal Firefox profile via `about:debugging` (not a throwaway `web-ext` profile) so you stay logged in.
+After code changes: `npm run prepare:dev-firefox` again → **Reload** the temporary addon in `about:debugging` → hard-reload YouTube (`Ctrl+Shift+R`).
 
-Reload the temporary addon after code changes. Hard-reload YouTube (`Ctrl+Shift+R`) if a toggle does not apply immediately.
+**Tip:** You can stay logged in on your normal Firefox profile; production and DEV keep **separate** storage.
 
 ### Optional: `web-ext` dev loop
 

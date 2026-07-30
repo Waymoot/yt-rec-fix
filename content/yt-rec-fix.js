@@ -108,6 +108,7 @@
     hideForYou: false,
     hidePopularVideos: false,
     hideChannelFeature: false,
+    hideBreakingNews: false,
   };
   let lastUrl = location.href;
   let debounceTimer = null;
@@ -666,6 +667,31 @@
         if (!hasLockup) return { match: false, reason: 'no featured video lockup' };
 
         return { match: true, reason: 'ytd-channel-featured-content-renderer' };
+      },
+    },
+    {
+      id: 'breaking-news',
+      label: 'Breaking news',
+      settingKey: 'hideBreakingNews',
+      detect(section) {
+        // tmp/breaking_news.txt — Home feed news Shorts row:
+        // ytd-rich-section-renderer > ytd-rich-shelf-renderer (no is-shorts) + #title "Breaking news"
+        // Items are ytd-rich-grid-media linking to /shorts/… (not the usual is-shorts shelf).
+        const shelf = section.querySelector('ytd-rich-shelf-renderer');
+        if (!shelf) return { match: false, reason: 'no ytd-rich-shelf-renderer' };
+
+        const titleText = (
+          shelf.querySelector('#title, span#title')?.textContent ||
+          getSectionTitleText(section) ||
+          ''
+        )
+          .trim()
+          .toLowerCase();
+        if (titleText === 'breaking news') {
+          return { match: true, reason: 'rich shelf #title === Breaking news' };
+        }
+
+        return { match: false, reason: 'no breaking news signals' };
       },
     },
   ];

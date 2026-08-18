@@ -17,6 +17,8 @@ const DEFAULT_SETTINGS = {
   hidePopularVideos: false,
   hideChannelFeature: false,
   hideBreakingNews: false,
+  hideMemberships: false,
+  hidePlayables: false,
 };
 
 const SETTING_CONTROLS = [
@@ -32,6 +34,8 @@ const SETTING_CONTROLS = [
   { id: 'hide-popular-videos', key: 'hidePopularVideos' },
   { id: 'hide-channel-feature', key: 'hideChannelFeature' },
   { id: 'hide-breaking-news', key: 'hideBreakingNews' },
+  { id: 'hide-memberships', key: 'hideMemberships' },
+  { id: 'hide-playables', key: 'hidePlayables' },
   { id: 'debug', key: 'debug' },
 ];
 

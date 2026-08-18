@@ -4,6 +4,13 @@ All notable changes to **YT Rec Fix** (*YouTube Recommendation Fix*) are documen
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.5] — 2026-08-18
+
+### Added
+
+- **Hide "YouTube Playables" on Home** — new toggle for YouTube’s instant-games shelf (`ytd-rich-shelf-renderer` titled “YouTube Playables”, cards are `ytd-mini-game-card-view-model` linking to `/playables/…`). Distinct from video/Shorts shelves. Does not hide the dedicated `/playables` hub. Checkbox under **Hide sections** in the popup.
+- **Hide "Get more with a membership" on Home** — new toggle for YouTube’s branded memberships shelf (`ytd-brand-video-shelf-renderer` with `yt-sponsorships-channel-upsell-view-model` channel tiles and a `/channel_memberships` CTA). Distinct from video/Shorts shelves. Checkbox under **Hide sections** in the popup.
+
 ## [0.2.4] — 2026-07-30
 
 ### Added
@@ -66,6 +73,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Auto-block on `/watch` pages, debug logging, reduced feedback UI flash.
 - Firefox MV3, `storage.local`, unlisted signed `.xpi` releases.
 
+[0.2.5]: https://github.com/Waymoot/yt-rec-fix/releases/tag/v0.2.5
 [0.2.4]: https://github.com/Waymoot/yt-rec-fix/releases/tag/v0.2.4
 [0.2.3]: https://github.com/Waymoot/yt-rec-fix/releases/tag/v0.2.3
 [0.2.2]: https://github.com/Waymoot/yt-rec-fix/releases/tag/v0.2.2

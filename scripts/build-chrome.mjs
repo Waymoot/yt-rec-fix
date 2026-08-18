@@ -29,7 +29,7 @@ function toChromeManifest(manifest) {
   chromeManifest.minimum_chrome_version = '109';
 
   const chromeDescription =
-    'One-click watched/dislike + local blocklist on YouTube. Hide Shorts, For You, Popular videos, Feature, topics & more. No servers.';
+    'One-click watched/dislike + local blocklist on YouTube. Hide Shorts, Playables, Breaking news, For You & more. No servers.';
   if (chromeDescription.length > 132) {
     throw new Error(`Chrome description too long (${chromeDescription.length} > 132)`);
   }

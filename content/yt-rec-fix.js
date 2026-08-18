@@ -109,6 +109,8 @@
     hidePopularVideos: false,
     hideChannelFeature: false,
     hideBreakingNews: false,
+    hideMemberships: false,
+    hidePlayables: false,
   };
   let lastUrl = location.href;
   let debounceTimer = null;
@@ -481,6 +483,16 @@
       if (chipsText) return chipsText;
     }
 
+    // Home membership / brand shelf — tmp/membership.txt (ytd-brand-video-shelf-renderer)
+    const brandShelf = section.querySelector('ytd-brand-video-shelf-renderer');
+    if (brandShelf) {
+      const brandTitle = brandShelf.querySelector(
+        'h2.ytShelfHeaderLayoutTitle, .ytShelfHeaderLayoutTitle, h2 span[role="text"], h2'
+      );
+      const brandText = (brandTitle?.textContent || '').trim();
+      if (brandText) return brandText;
+    }
+
     // Search results Shorts shelf — tmp/shorts.txt (grid-shelf-view-model)
     const gridShelfHeader = section.querySelector(
       '.ytShelfHeaderLayoutTitle, h2.ytShelfHeaderLayoutTitle, yt-shelf-header-layout h2'
@@ -694,6 +706,87 @@
         return { match: false, reason: 'no breaking news signals' };
       },
     },
+    {
+      id: 'memberships',
+      label: 'Get more with a membership',
+      settingKey: 'hideMemberships',
+      detect(section) {
+        // tmp/membership.txt — Home feed branded memberships shelf:
+        // ytd-rich-section-renderer > ytd-brand-video-shelf-renderer[has-sponsorships-channel-upsell-view-model]
+        // Channel tiles: yt-sponsorships-channel-upsell-view-model; CTA /channel_memberships
+        const brandShelf = section.querySelector('ytd-brand-video-shelf-renderer');
+        if (brandShelf) {
+          if (brandShelf.hasAttribute('has-sponsorships-channel-upsell-view-model')) {
+            return {
+              match: true,
+              reason: 'ytd-brand-video-shelf-renderer[has-sponsorships-channel-upsell-view-model]',
+            };
+          }
+          if (brandShelf.querySelector('yt-sponsorships-channel-upsell-view-model')) {
+            return { match: true, reason: 'brand shelf + yt-sponsorships-channel-upsell-view-model' };
+          }
+          if (brandShelf.querySelector('a[href*="/channel_memberships"]')) {
+            return { match: true, reason: 'brand shelf + /channel_memberships CTA' };
+          }
+        }
+
+        if (section.querySelector('yt-sponsorships-channel-upsell-view-model')) {
+          return { match: true, reason: 'yt-sponsorships-channel-upsell-view-model' };
+        }
+
+        const titleText = (getSectionTitleText(section) || '').trim().toLowerCase();
+        if (
+          titleText === 'get more with a membership' ||
+          titleText === 'få mer med ett medlemskap'
+        ) {
+          return { match: true, reason: 'title === Get more with a membership' };
+        }
+
+        return { match: false, reason: 'no membership shelf signals' };
+      },
+    },
+    {
+      id: 'playables',
+      label: 'YouTube Playables',
+      settingKey: 'hidePlayables',
+      detect(section) {
+        // tmp/playables.txt — Home feed instant-games shelf:
+        // ytd-rich-section-renderer > ytd-rich-shelf-renderer titled "YouTube Playables"
+        // Items: ytd-rich-item-renderer[is-mini-game-card-shelf] > ytd-mini-game-card-view-model
+        // Header + cards link to /playables and /playables/<id>. Do not hide the dedicated /playables hub.
+        const path = location.pathname;
+        if (path === '/playables' || path.startsWith('/playables/')) {
+          return { match: false, reason: 'on /playables page' };
+        }
+
+        if (section.querySelector('ytd-mini-game-card-view-model, mini-game-card-view-model')) {
+          return { match: true, reason: 'ytd-mini-game-card-view-model' };
+        }
+
+        if (section.querySelector('ytd-rich-item-renderer[is-mini-game-card-shelf]')) {
+          return { match: true, reason: 'ytd-rich-item-renderer[is-mini-game-card-shelf]' };
+        }
+
+        const shelf = section.querySelector('ytd-rich-shelf-renderer');
+        if (shelf) {
+          if (shelf.querySelector('a[href="/playables"], a[href^="/playables?"]')) {
+            return { match: true, reason: 'rich shelf + /playables href' };
+          }
+          const titleText = (
+            shelf.querySelector('#title, span#title')?.textContent ||
+            getSectionTitleText(section) ||
+            ''
+          )
+            .trim()
+            .toLowerCase();
+          if (titleText === 'youtube playables' || titleText === 'playables') {
+            return { match: true, reason: 'rich shelf #title === YouTube Playables' };
+          }
+        }
+
+        return { match: false, reason: 'no playables signals' };
+      },
+    },
   ];
 
   function findSectionContainers() {
@@ -718,6 +811,12 @@
       hasChannelShelf: !!section.querySelector('ytd-shelf-renderer'),
       hasReelShelf: !!section.querySelector('ytd-reel-shelf-renderer'),
       hasChannelFeature: !!section.querySelector('ytd-channel-featured-content-renderer'),
+      hasBrandVideoShelf: !!section.querySelector('ytd-brand-video-shelf-renderer'),
+      hasMembershipUpsell: !!section.querySelector('yt-sponsorships-channel-upsell-view-model'),
+      hasMiniGameCard: !!section.querySelector(
+        'ytd-mini-game-card-view-model, mini-game-card-view-model'
+      ),
+      hasPlayablesLink: !!section.querySelector('a[href="/playables"], a[href^="/playables/"]'),
       hasShortsLockup: !!section.querySelector(
         'ytm-shorts-lockup-view-model-v2, ytm-shorts-lockup-view-model'
       ),
